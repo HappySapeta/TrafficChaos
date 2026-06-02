@@ -62,7 +62,7 @@ class TRAFFICCHAOS_API TCSimulator
 public:
  
 	TCSimulator()
-		:CostField(1,0,0)
+		:DensityField(1,0,0), VelocityField(1,0,FVector2f::Zero())
 	{}
 	
 	void Initialize(const float Resolution, const float WorldSize);
@@ -74,7 +74,7 @@ public:
 		const float InitialHeading = 0.0f
 	);
 	
-	const FRpSpatialData<float>& GetCostField() const;
+	const FRpSpatialData<float>& GetDensityField() const;
 	
 	void Update(const float DeltaSeconds);
 	
@@ -82,7 +82,8 @@ public:
 
 private:
 	
-	void UpdateCostField();
+	void UpdateDensityField();
+	void UpdateVelocityField();
 	float GaussianDistribution(float Distance);
 	
 private:
@@ -91,6 +92,7 @@ private:
 
 private:
 	
-	FRpSpatialData<float> CostField;
+	FRpSpatialData<float> DensityField;
+	FRpSpatialData<FVector2f> VelocityField;
 	FTCEntityArray Entities;
 }; 
