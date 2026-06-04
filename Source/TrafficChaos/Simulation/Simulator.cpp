@@ -5,8 +5,7 @@ constexpr float GAUSSIAN_SCALE = 1.0f;
 
 void TCSimulator::Initialize(const float Resolution, const float WorldSize)
 {
-	DensityField.Initialize(Resolution, WorldSize, 0);
-	VelocityField.Initialize(Resolution, WorldSize, FVector2f::ZeroVector);
+	Field.Initialize(Resolution, WorldSize, {});
 }
 
 void TCSimulator::AddEntity(const FVector2f& InitialPosition, const FVector2f InitialVelocity, const float InitialHeading)
@@ -16,22 +15,21 @@ void TCSimulator::AddEntity(const FVector2f& InitialPosition, const FVector2f In
 
 void TCSimulator::UpdateDensityField()
 {
-	const auto ResetDensities = [](float* Cell, const FVector2f& Coords) -> void
+	const auto ResetDensities = [](FTCCell* Cell, const FVector2f& Coords) -> void
 	{
-		*Cell = 0;
+		Cell->Density = 0;
 	};
-	DensityField.ForEachCellPerform(ResetDensities);
+	Field.ForEachCellPerform(ResetDensities);
 	
 	for (int EntityIndex = 0; EntityIndex < Entities.Num(); ++EntityIndex)
 	{
-		const FVector2f GridCoords = DensityField.WorldToGridSnapped(Entities.Positions[EntityIndex]);
+		const FVector2f GridCoords = Field.WorldToGridSnapped(Entities.Positions[EntityIndex]);
 		
 		const auto ApplyDensity = [this, GridCoords](const FVector2f Offset, const float Distance)
 		{
-			float* CellDensity = DensityField.GetDataAt(GridCoords, Offset);
-			if (CellDensity)
+			if (FTCCell* Cell = Field.GetDataAt(GridCoords, Offset))
 			{
-				*CellDensity = FMath::Min(1.0f, *CellDensity + GaussianDistribution(Distance));
+				Cell->Density = FMath::Min(1.0f, Cell->Density + GaussianDistribution(Distance));
 			}
 		};
 
@@ -49,61 +47,37 @@ void TCSimulator::UpdateDensityField()
 
 void TCSimulator::UpdateVelocityField()
 {
-	const auto ResetVelocities = [](FVector2f* Velocity, const FVector2f& Coords) -> void
+	// Reset velocities to zero.
+	const auto ResetVelocities = [](FTCCell* Cell, const FVector2f& Coords) -> void
 	{
-		*Velocity = FVector2f::ZeroVector;
+		Cell->Velocity = FVector2f::ZeroVector;
 	};
-	
-	VelocityField.ForEachCellPerform(ResetVelocities);
+	Field.ForEachCellPerform(ResetVelocities);
 	
 	for (int EntityIndex = 0; EntityIndex < Entities.Num(); ++EntityIndex)
 	{
-		const FVector2f& Velocity = Entities.Velocities[EntityIndex];
-		const FVector2f& GridLocation = VelocityField.WorldToGridSnapped(Entities.Positions[EntityIndex]);
+		const FVector2f& EntityVelocity = Entities.Velocities[EntityIndex];
+		const FVector2f& GridLocation = Field.WorldToGridSnapped(Entities.Positions[EntityIndex]);
 		
-		if (FVector2f* CellVelocity = VelocityField.GetDataAt(GridLocation))
+		if (FTCCell* Cell = Field.GetDataAt(GridLocation))
 		{
-			*CellVelocity += Velocity;
+			Cell->Velocity += EntityVelocity;
 		}
 	}
 	
-	const auto AverageVelocities = [this](FVector2f* Cell, const FVector2f& Coords)
+	const auto AverageVelocities = [this](FTCCell* Cell, const FVector2f& Coords)
 	{
-		checkf(DensityField.IsValidGridCoordinate(Coords), TEXT("Invalid grid coordinates."));
+		checkf(Field.IsValidGridCoordinate(Coords), TEXT("Invalid grid coordinates."));
 		
-		const float Density = *DensityField.GetDataAt(Coords);
-		*VelocityField.GetDataAt(Coords) /= FMath::Max(Density, 1.0f);
+		const float Density = Field.GetDataAt(Coords)->Density;
+		Field.GetDataAt(Coords)->Velocity /= FMath::Max(Density, 1.0f);
 	};
-	VelocityField.ForEachCellPerform(AverageVelocities);
+	Field.ForEachCellPerform(AverageVelocities);
 }
 
 float TCSimulator::GaussianDistribution(const float Distance)
 {
 	return FMath::Exp(-1 * FMath::Square(Distance) / GAUSSIAN_FALLOFF) * GAUSSIAN_SCALE;
-}
-
-void TCSimulator::Debug_MoveEntities(const float DeltaSeconds)
-{
-	constexpr float Radius = 1.0f;
-	static float Theta = 0.0f;
-	if (Theta >= 2 * PI)
-	{
-		Theta = 0;
-	}
-	
-	Theta += DeltaSeconds;
-	
-	for (int EntityIndex = 0; EntityIndex < Entities.Num(); ++EntityIndex)
-	{
-		const FVector2f Translation = FVector2f(Radius * FMath::Cos(Theta), Radius * FMath::Sin(Theta));
-		Entities.Positions[EntityIndex] += Translation;
-		Entities.Velocities[EntityIndex] = Translation / DeltaSeconds; 
-	}
-}
-
-const FRpSpatialData<float>& TCSimulator::GetDensityField() const
-{
-	return DensityField;
 }
 
 void TCSimulator::Update(const float DeltaSeconds)
@@ -123,29 +97,29 @@ void TCSimulator::Debug_Draw(const UWorld* World, const float DeltaSeconds)
 			DrawDebugSphere(World, Center, 10.0f, 8, FColor::Green);
 		}
 	
-		const float DebugBoxExtent = DensityField.GetCellSize();
-		const auto DrawDensities = [this, World, DebugBoxExtent](float* Density, const FVector2f& Coords)
+		const float DebugBoxExtent = Field.GetCellSize();
+		const auto DrawDensities = [this, World, DebugBoxExtent](FTCCell* Cell, const FVector2f& Coords)
 		{
-			const FVector2f WorldCoords = DensityField.GridToWorld(Coords);
+			const FVector2f WorldCoords = Field.GridToWorld(Coords);
 			const FLinearColor DebugColor = FLinearColor::LerpUsingHSV(FLinearColor{1.0f, 1.0f, 1.0f, 0.1f},
 																	   FLinearColor{1.0f, 0.0f, 0.0f, 0.5f}, 
-																	   *Density);
+																	   Cell->Density);
 		
 			const FVector BoxMin = {WorldCoords.X, WorldCoords.Y, 0};
 			const FVector BoxMax = {WorldCoords.X + DebugBoxExtent, WorldCoords.Y + DebugBoxExtent, DebugBoxExtent};
 			DrawDebugSolidBox(World, FBox(BoxMin, BoxMax), DebugColor.ToFColor(false));
 		};
 	
-		DensityField.ForEachCellPerform(DrawDensities);
+		Field.ForEachCellPerform(DrawDensities);
 	}
 	
 	// Debug VelocityField.
 	{
-		const float CellSize = VelocityField.GetCellSize();
-		const auto DrawVelocties = [this, World, CellSize](FVector2f* Velocity, const FVector2f& Coords) -> void
+		const float CellSize = Field.GetCellSize();
+		const auto DrawVelocties = [this, World, CellSize](FTCCell* Cell, const FVector2f& Coords) -> void
 		{
-			const FVector2f WorldLocation = VelocityField.GridToWorld(Coords);
-			const FVector2f Direction = Velocity->IsNearlyZero() ? FVector2f{1.0f, 0.0f} : Velocity->GetSafeNormal();
+			const FVector2f WorldLocation = Field.GridToWorld(Coords);
+			const FVector2f Direction = Cell->Velocity.IsNearlyZero() ? FVector2f{1.0f, 0.0f} : Cell->Velocity.GetSafeNormal();
 			const FColor DebugColor = FColor::Yellow;
 			DrawDebugCone
 			(
@@ -155,6 +129,25 @@ void TCSimulator::Debug_Draw(const UWorld* World, const float DeltaSeconds)
 				50.0f, PI/6, PI/6, 12, DebugColor
 			);
 		};
-		VelocityField.ForEachCellPerform(DrawVelocties);
+		Field.ForEachCellPerform(DrawVelocties);
+	}
+}
+
+void TCSimulator::Debug_MoveEntities(const float DeltaSeconds)
+{
+	constexpr float Radius = 1.0f;
+	static float Theta = 0.0f;
+	if (Theta >= 2 * PI)
+	{
+		Theta = 0;
+	}
+	
+	Theta += DeltaSeconds;
+	
+	for (int EntityIndex = 0; EntityIndex < Entities.Num(); ++EntityIndex)
+	{
+		const FVector2f Translation = FVector2f(Radius * FMath::Cos(Theta), Radius * FMath::Sin(Theta));
+		Entities.Positions[EntityIndex] += Translation;
+		Entities.Velocities[EntityIndex] = Translation / DeltaSeconds; 
 	}
 }

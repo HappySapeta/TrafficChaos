@@ -56,13 +56,20 @@ private:
 	
 	int Size = 0;
 };
- 
+
+struct FTCCell
+{
+	float Density;
+	FVector2f Velocity;
+	float Potential;
+};
+
 class TRAFFICCHAOS_API TCSimulator
 {
 public:
  
 	TCSimulator()
-		:DensityField(1,0,0), VelocityField(1,0,FVector2f::Zero())
+		:Field(1,0,{})
 	{}
 	
 	void Initialize(const float Resolution, const float WorldSize);
@@ -73,8 +80,6 @@ public:
 		const FVector2f InitialVelocity = FVector2f::ZeroVector, 
 		const float InitialHeading = 0.0f
 	);
-	
-	const FRpSpatialData<float>& GetDensityField() const;
 	
 	void Update(const float DeltaSeconds);
 	
@@ -92,7 +97,6 @@ private:
 
 private:
 	
-	FRpSpatialData<float> DensityField;
-	FRpSpatialData<FVector2f> VelocityField;
+	FRpSpatialData<FTCCell> Field;
 	FTCEntityArray Entities;
 }; 
