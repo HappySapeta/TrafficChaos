@@ -75,9 +75,188 @@ void TCSimulator::UpdateVelocityField()
 	Field.ForEachCellPerform(AverageVelocities);
 }
 
+void TCSimulator::UpdateCostField()
+{
+	const auto UpdateCosts = [this](FTCCell* Cell, const FVector2f& Coords) -> void
+	{
+		for(const EDirectionIndex DirectionIndex : CARDINAL_DIRECTIONS)
+		{
+			const FTCCell* NeighborCell = Field.GetDataAt(Coords, DIRECTION_OFFSETS[DirectionIndex]);
+			if(!NeighborCell)
+			{
+				Cell->CostField[DirectionIndex] = MAX_POTENTIAL;
+				continue;
+			}
+			
+			const float SpeedField = GetSpeedField(Cell->Velocity, DirectionIndex);
+			Cell->CostField[DirectionIndex] = Cell->Density + SpeedField;
+		}
+	};
+	
+	Field.ForEachCellPerform(UpdateCosts);
+}
+
+float TCSimulator::GetFiniteDifferenceApproximation(const FVector2f& Coords)
+{
+	auto GetCheapestAdjCellOnAxis = [this](const FVector2f& Coordinates, const EDirectionIndex FirstDirection, const EDirectionIndex SecondDirection) -> FTCCheapestNeighbor
+	{
+		FTCCell* CurrentCell = Field.GetDataAt(Coordinates);
+		FTCCell* FirstNeighbor = Field.GetDataAt(Coordinates, DIRECTION_OFFSETS[FirstDirection]);
+		FTCCell* SecondNeighbor = Field.GetDataAt(Coordinates, DIRECTION_OFFSETS[SecondDirection]);
+
+		if(FirstNeighbor && !SecondNeighbor)
+		{
+			return {FirstNeighbor->Potential, CurrentCell->CostField[FirstDirection]};
+		}
+		else if(!FirstNeighbor && SecondNeighbor)
+		{
+			return {SecondNeighbor->Potential, CurrentCell->CostField[SecondDirection]};
+		}
+		else if(!FirstNeighbor && !SecondNeighbor)
+		{
+			return {MAX_POTENTIAL, MAX_POTENTIAL};
+		}
+
+		const FTCCheapestNeighbor ResultFirst = {FirstNeighbor->Potential, CurrentCell->CostField[FirstDirection]};
+		const FTCCheapestNeighbor ResultSecond = {SecondNeighbor->Potential, CurrentCell->CostField[SecondDirection]};
+		
+		return ResultFirst.Sum() < ResultSecond.Sum() ? ResultFirst : ResultSecond;
+	};
+	
+	auto Square = [](const float V){ return V * V; };
+	const auto [PhiX, Cx] = GetCheapestAdjCellOnAxis(Coords, EAST, WEST);
+	const auto [PhiY, Cy] = GetCheapestAdjCellOnAxis(Coords, NORTH, SOUTH);
+	
+	if(PhiX == MAX_POTENTIAL)
+	{
+		return PhiY + Cy;
+	}
+
+	if(PhiY == MAX_POTENTIAL)
+	{
+		return PhiX + Cx;
+	}
+	
+	const float QuadraticCoeffA = Square(Cy) + Square(Cx);
+	const float QuadraticCoeffB = -2 * ((PhiX * Square(Cy)) + (PhiY * Square(Cx)));
+	const float QuadraticCoeffC = (Square(PhiX) * Square(Cy)) + (Square(PhiY) * Square(Cx)) - (Square(Cx) * Square(Cy));
+
+	const float TermUnderSqrt = Square(QuadraticCoeffB) - (4 * QuadraticCoeffA * QuadraticCoeffC);
+	if(TermUnderSqrt >= 0.0f)
+	{
+		const float FirstSolution = (-QuadraticCoeffB + sqrt(TermUnderSqrt)) / (2 * QuadraticCoeffA);
+		const float SecondSolution = (-QuadraticCoeffB - sqrt(TermUnderSqrt)) / (2 * QuadraticCoeffA);
+
+		const float ResultPotential = std::max(FirstSolution, SecondSolution);
+
+		if(ResultPotential > PhiX && ResultPotential > PhiY)
+		{
+			return ResultPotential;
+		}
+	}
+	
+	return std::min(PhiX + Cx, PhiY + Cy);
+}
+
+void TCSimulator::Solve(const FVector2f& GoalCoords)
+{
+	FTCCell* GoalCell = Field.GetDataAt(GoalCoords);
+	checkf(GoalCell, TEXT("Invalid coordinates for goal."));
+	
+	Knowns.Empty();
+	Unknowns.Empty();
+	Candidates.Empty();
+
+	const auto InitiallizePotentials = [this, GoalCell](FTCCell* Cell, const FVector2f& Coords)->void
+	{
+		if(Cell != GoalCell)
+		{
+			Cell->Potential = MAX_POTENTIAL;
+			Unknowns.Push(Cell);
+		}
+		else
+		{
+			Cell->Potential = 0.0f;
+			Knowns.Push(Cell);
+		}
+	};
+	Field.ForEachCellPerform(InitiallizePotentials);
+	
+	for(FTCCell* Cell : Unknowns)
+	{
+		float& CurrentPotential = Cell->Potential;
+		const float NewPotential = GetFiniteDifferenceApproximation(Cell->Coords);
+		if(NewPotential < CurrentPotential)
+		{
+			CurrentPotential = NewPotential;
+			Unknowns.RemoveSwap(Cell);
+			Candidates.HeapPush(Cell, FTCMostOptimalNode());
+		}
+	}
+
+	while(!Candidates.IsEmpty())
+	{
+		FTCCell* Cell;
+		Candidates.HeapPop(Cell, FTCMostOptimalNode());
+
+		Knowns.Push(Cell);
+
+		for(FTCCell* Neighbor : GetNeighbors(Cell->Coords))
+		{
+			if(Knowns.Contains(Neighbor))
+			{
+				continue;
+			}
+
+			float& CurrentPotential = Neighbor->Potential;
+			const float NewPotential = GetFiniteDifferenceApproximation(Neighbor->Coords);
+			if(NewPotential < CurrentPotential)
+			{
+				CurrentPotential = NewPotential;
+				
+				Unknowns.RemoveSwap(Neighbor);
+				Candidates.HeapPush(Neighbor, FTCMostOptimalNode());
+			}
+		}
+	}
+}
+
 float TCSimulator::GaussianDistribution(const float Distance)
 {
 	return FMath::Exp(-1 * FMath::Square(Distance) / GAUSSIAN_FALLOFF) * GAUSSIAN_SCALE;
+}
+
+float TCSimulator::GetSpeedField(const FVector2f& Velocity, const EDirectionIndex Direction)
+{
+	switch (Direction)
+	{
+		case NORTH:
+			return Velocity.Y;
+		case WEST:
+			return -Velocity.X;
+		case SOUTH:
+			return -Velocity.Y;
+		case EAST:
+			return Velocity.X;
+	}
+	
+	return 0;
+};
+
+TArray<FTCCell*> TCSimulator::GetNeighbors(const FVector2f& Coords)
+{
+	static TArray<FTCCell*> Neighbors;
+	Neighbors.Empty();
+	
+	for (const FVector2f& Offset : DIRECTION_OFFSETS)
+	{
+		if (FTCCell* Node = Field.GetDataAt(Coords, Offset))
+		{
+			Neighbors.Push(Node);
+		}
+	}
+	
+	return Neighbors;
 }
 
 void TCSimulator::Update(const float DeltaSeconds)
@@ -85,6 +264,14 @@ void TCSimulator::Update(const float DeltaSeconds)
 	Debug_MoveEntities(DeltaSeconds);
 	UpdateDensityField();
 	UpdateVelocityField();
+	UpdateCostField();
+	
+	static bool bSolved = false;
+	if (!bSolved)
+	{
+		Solve({Field.GetResolution() - 1, Field.GetResolution() - 1});
+		bSolved = true;
+	}
 }
 
 void TCSimulator::Debug_Draw(const UWorld* World, const float DeltaSeconds)

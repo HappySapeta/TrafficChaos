@@ -3,6 +3,8 @@
 #include "CoreMinimal.h"
 #include "SpatialData.h"
 
+constexpr float MAX_POTENTIAL = 1000;
+
 const FVector2f D_NORTH			{ 0, -1};
 const FVector2f D_NORTH_WEST	{-1, -1};
 const FVector2f D_WEST			{-1,  0};
@@ -12,22 +14,21 @@ const FVector2f D_SOUTH_EAST	{+1, +1};
 const FVector2f D_EAST			{+1,  0};
 const FVector2f D_NORTH_EAST	{+1, -1};
 
-// North, West, South, East
-const TStaticArray<FVector2f, 4> BASIC_OFFSETS
+// North, West, South, EastDIR
+const TStaticArray<FVector2f, 4> DIRECTION_OFFSETS
 {
 	D_NORTH, D_WEST, D_SOUTH, D_EAST,
 };
 
-enum EDirectionIndex : uint8_t
+enum EDirectionIndex : uint8
 {
-	NORTH = 0,
+	NORTH,
 	WEST,
 	SOUTH,
 	EAST,
-	COUNT
 };
 
-constexpr TStaticArray<EDirectionIndex, 4> CARDINAL_DIRECTIONS
+const TArray<EDirectionIndex> CARDINAL_DIRECTIONS
 {
 	NORTH, WEST, SOUTH, EAST
 };
@@ -59,9 +60,38 @@ private:
 
 struct FTCCell
 {
+	FTCCell()
+		: 
+	Density(0.0f), 
+	Potential(0.0f), 
+	Velocity(FVector2f::ZeroVector),
+	Coords(FVector2f::ZeroVector),
+	CostField({0,0,0,0})
+	{}
+	
 	float Density;
-	FVector2f Velocity;
 	float Potential;
+	FVector2f Velocity;
+	FVector2f Coords;
+	TStaticArray<float, 4> CostField;
+};
+
+struct FTCCheapestNeighbor
+{
+	float Potential;
+	float CostToTravel;
+	float Sum() const
+	{
+		return Potential + CostToTravel;
+	}
+};
+
+struct FTCMostOptimalNode
+{
+	bool operator()(const FTCCell& Left, const FTCCell& Right) const
+	{
+		return Left.Potential > Right.Potential;
+	};
 };
 
 class TRAFFICCHAOS_API TCSimulator
@@ -89,8 +119,13 @@ private:
 	
 	void UpdateDensityField();
 	void UpdateVelocityField();
+	void UpdateCostField();
+	float GetFiniteDifferenceApproximation(const FVector2f& Coords);
+	void Solve(const FVector2f& GoalCoords);
 	float GaussianDistribution(float Distance);
-	
+	float GetSpeedField(const FVector2f& Velocity, EDirectionIndex Direction);
+	TArray<FTCCell*> GetNeighbors(const FVector2f& Coords);
+
 private:
 	
 	void Debug_MoveEntities(const float DeltaSeconds);
@@ -99,4 +134,8 @@ private:
 	
 	FRpSpatialData<FTCCell> Field;
 	FTCEntityArray Entities;
+	
+	TArray<FTCCell*> Knowns;
+	TArray<FTCCell*> Unknowns;
+	TArray<FTCCell*> Candidates;
 }; 
