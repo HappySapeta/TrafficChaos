@@ -1,7 +1,6 @@
 ﻿// Fill out your copyright notice in the Description page of Project Settings.
 
 #include "SimulationActor.h"
-
 #include "Kismet/KismetMathLibrary.h"
 
 // Sets default values
@@ -15,7 +14,7 @@ ASimulationActor::ASimulationActor()
 void ASimulationActor::BeginPlay()
 {
 	Super::BeginPlay();
-	Simulator.Initialize(20, 2000);
+	Simulator.Initialize(GridResolution, WorldSpan);
 	
 	const auto AddEntityAtRandomLocation = [this](const float MinRange, const float MaxRange) -> void 
 	{
@@ -25,10 +24,10 @@ void ASimulationActor::BeginPlay()
 		Simulator.AddEntity({X, Y});
 	};
 
-	int NumEntities = 10;
+	int NumEntities = EntityCount;
 	while (NumEntities > 0)
 	{
-		AddEntityAtRandomLocation(0, 2000);
+		AddEntityAtRandomLocation(0, WorldSpan);
 		--NumEntities;
 	}
 }
@@ -44,6 +43,16 @@ void ASimulationActor::Debug_Draw(const float DeltaSeconds)
 {
 	const UWorld* World = GetWorld();
 	const FRpSpatialData<FTCCell>& Field = Simulator.GetFieldData();
+	
+	// Draw entities.
+	if (bDrawEntities)
+	{
+		const FTCEntityArray& EntityPositions = Simulator.GetEntityPositions();
+		for (const FVector2f& Position : EntityPositions.Positions)
+		{
+			DrawDebugSphere(World, {Position.X, Position.Y, 0.0f}, 10.0f, 10, FColor::Green);
+		}
+	}
 	
 	// Debug DensityField.
 	if (bDrawDensityField)
@@ -67,20 +76,20 @@ void ASimulationActor::Debug_Draw(const float DeltaSeconds)
 	// Debug potential field.
 	if (bDrawPotentialField)
 	{
-		const auto DrawDensities = [this, World, Field](const FTCCell* Cell, const FVector2f& Coords)
+		const auto DrawPotential = [this, World, Field, DeltaSeconds](const FTCCell* Cell, const FVector2f& Coords)
 		{
 			const float DebugBoxExtent = Field.GetCellSize();
 			const FVector2f WorldCoords = Field.GridToWorld(Coords);
-			const FLinearColor DebugColor = FLinearColor::LerpUsingHSV(FLinearColor{1.0f, 1.0f, 1.0f, 0.1f},
-																	   FLinearColor{1.0f, 0.0f, 0.0f, 0.5f}, 
-																	   Cell->Potential / MAX_POTENTIAL);
-		
 			const FVector BoxMin = {WorldCoords.X, WorldCoords.Y, 0};
-			const FVector BoxMax = {WorldCoords.X + DebugBoxExtent, WorldCoords.Y + DebugBoxExtent, DebugBoxExtent};
-			DrawDebugSolidBox(World, FBox(BoxMin, BoxMax), DebugColor.ToFColor(false));
+			const FVector BoxMax = {WorldCoords.X + DebugBoxExtent, WorldCoords.Y + DebugBoxExtent, 100};
+			DrawDebugSolidBox(World, FBox(BoxMin, BoxMax), FColor(255, 255, 255, 10));
+			
+			const FString String = FString::Printf(TEXT("%.0f"), Cell->Potential);
+			const FVector StringLocation = {WorldCoords.X + DebugBoxExtent / 2, WorldCoords.Y + DebugBoxExtent / 2, 0.0f}; 
+			DrawDebugString(World, StringLocation , String, this, FColor::Red, DeltaSeconds);
 		};
 	
-		Field.ForEachCellPerform(DrawDensities);
+		Field.ForEachCellPerform(DrawPotential);
 	}
 	
 	// Debug VelocityField.

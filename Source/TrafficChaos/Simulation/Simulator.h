@@ -3,8 +3,6 @@
 #include "CoreMinimal.h"
 #include "SpatialData.h"
 
-constexpr float MAX_POTENTIAL = 1;
-
 const FVector2f D_NORTH			{ 0, -1};
 const FVector2f D_NORTH_WEST	{-1, -1};
 const FVector2f D_WEST			{-1,  0};
@@ -118,6 +116,11 @@ public:
 	const FRpSpatialData<FTCCell>& GetFieldData() const
 	{
 		return Field;
+	}
+
+	const FTCEntityArray& GetEntityPositions() const
+	{
+		return Entities;
 	}
 
 private:

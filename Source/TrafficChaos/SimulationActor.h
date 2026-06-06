@@ -26,6 +26,15 @@ private:
 	
 	TCSimulator Simulator;
 	
+	UPROPERTY(EditAnywhere, Category = "Simulation", meta = (ClampMin = 1, ClampMax = 100, UIMin = 1, UIMax = 100))
+	int GridResolution = 1;
+	
+	UPROPERTY(EditAnywhere, Category = "Simulation", meta = (ClampMin = 1, UIMin = 1))
+	float WorldSpan = 1;
+	
+	UPROPERTY(EditAnywhere, Category = "Simulation", meta = (ClampMin = 0, UIMin = 0))
+	int EntityCount = 1;
+	
 	UPROPERTY(EditAnywhere, Category = "Debug")
 	bool bDrawDensityField = false;
 	
@@ -37,4 +46,7 @@ private:
 	
 	UPROPERTY(EditAnywhere, Category = "Debug")
 	bool bDrawDesiredVelocityField = false;
+	
+	UPROPERTY(EditAnywhere, Category = "Debug")
+	bool bDrawEntities = true;
 };

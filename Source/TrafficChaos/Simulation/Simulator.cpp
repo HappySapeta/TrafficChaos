@@ -3,6 +3,8 @@
 constexpr float GAUSSIAN_FALLOFF = 1.0;
 constexpr float GAUSSIAN_SCALE = 1.0f;
 
+constexpr float MAX_POTENTIAL = 100;
+
 void TCSimulator::Initialize(const float Resolution, const float WorldSize)
 {
 	Field.Initialize(Resolution, WorldSize, {});
@@ -315,7 +317,7 @@ void TCSimulator::Update(const float DeltaSeconds)
 	if (!bSolved)
 	{
 		Solve({Field.GetResolution() - 1, Field.GetResolution() - 1});
-		bSolved = true;
+		//bSolved = true;
 		
 		CalculatePotentialGradient();
 		CalculateDesiredVelocityField();
