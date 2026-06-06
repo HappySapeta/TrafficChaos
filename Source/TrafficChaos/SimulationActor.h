@@ -20,8 +20,21 @@ public:
 	virtual void BeginPlay() override;
 	
 	virtual void Tick(float DeltaSeconds) override;
+	void Debug_Draw(float DeltaSeconds);
 
 private:
 	
 	TCSimulator Simulator;
+	
+	UPROPERTY(EditAnywhere, Category = "Debug")
+	bool bDrawDensityField = false;
+	
+	UPROPERTY(EditAnywhere, Category = "Debug")
+	bool bDrawPotentialField = false;
+	
+	UPROPERTY(EditAnywhere, Category = "Debug")
+	bool bDrawCellVelocityField = false;
+	
+	UPROPERTY(EditAnywhere, Category = "Debug")
+	bool bDrawDesiredVelocityField = false;
 };

@@ -115,19 +115,24 @@ public:
 	
 	void Update(const float DeltaSeconds);
 	
-	void Debug_Draw(const UWorld* World, float DeltaSeconds);
+	const FRpSpatialData<FTCCell>& GetFieldData() const
+	{
+		return Field;
+	}
 
 private:
 	
 	void UpdateDensityField();
 	void UpdateVelocityField();
 	void UpdateCostField();
-	float GetFiniteDifferenceApproximation(const FVector2f& Coords);
 	void Solve(const FVector2f& GoalCoords);
 	void CalculatePotentialGradient();
 	void CalculateDesiredVelocityField();
+	
+	float GetFiniteDifferenceApproximation(const FVector2f& Coords);
 	float GaussianDistribution(float Distance);
 	float GetSpeedField(const FVector2f& Velocity, EDirectionIndex Direction);
+	
 	TArray<FTCCell*> GetNeighbors(const FVector2f& Coords);
 
 private:
