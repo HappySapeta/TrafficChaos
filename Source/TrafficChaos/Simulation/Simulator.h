@@ -3,7 +3,7 @@
 #include "CoreMinimal.h"
 #include "SpatialData.h"
 
-constexpr float MAX_POTENTIAL = 1000;
+constexpr float MAX_POTENTIAL = 1;
 
 const FVector2f D_NORTH			{ 0, -1};
 const FVector2f D_NORTH_WEST	{-1, -1};
@@ -73,7 +73,9 @@ struct FTCCell
 	float Potential;
 	FVector2f Velocity;
 	FVector2f Coords;
+	FVector2f DesiredVelocity;
 	TStaticArray<float, 4> CostField;
+	TStaticArray<float, 4> PotentialGradient;
 };
 
 struct FTCCheapestNeighbor
@@ -122,6 +124,8 @@ private:
 	void UpdateCostField();
 	float GetFiniteDifferenceApproximation(const FVector2f& Coords);
 	void Solve(const FVector2f& GoalCoords);
+	void CalculatePotentialGradient();
+	void CalculateDesiredVelocityField();
 	float GaussianDistribution(float Distance);
 	float GetSpeedField(const FVector2f& Velocity, EDirectionIndex Direction);
 	TArray<FTCCell*> GetNeighbors(const FVector2f& Coords);
@@ -138,4 +142,6 @@ private:
 	TArray<FTCCell*> Knowns;
 	TArray<FTCCell*> Unknowns;
 	TArray<FTCCell*> Candidates;
+	
+	bool bSolved = false;
 }; 

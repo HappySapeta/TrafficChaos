@@ -182,8 +182,10 @@ void TCSimulator::Solve(const FVector2f& GoalCoords)
 	};
 	Field.ForEachCellPerform(InitiallizePotentials);
 	
-	for(FTCCell* Cell : Unknowns)
+	for(int Index = 0; Index < Unknowns.Num(); ++Index)
 	{
+		FTCCell* Cell = Unknowns[Index];
+		
 		float& CurrentPotential = Cell->Potential;
 		const float NewPotential = GetFiniteDifferenceApproximation(Cell->Coords);
 		if(NewPotential < CurrentPotential)
@@ -219,6 +221,50 @@ void TCSimulator::Solve(const FVector2f& GoalCoords)
 			}
 		}
 	}
+}
+
+void TCSimulator::CalculatePotentialGradient()
+{
+	const auto Operation = [this](FTCCell* Cell, const FVector2f& Coords) -> void
+	{
+		for(const EDirectionIndex DirectionIndex : CARDINAL_DIRECTIONS)
+		{
+			if(const FTCCell* Neighbor = Field.GetDataAt(Coords, DIRECTION_OFFSETS[DirectionIndex]))
+			{
+				const float Gradient = Neighbor->Potential - Cell->Potential;
+				Cell->PotentialGradient[DirectionIndex] = Gradient;
+			}
+		}
+	};
+	
+	Field.ForEachCellPerform(Operation);
+}
+
+void TCSimulator::CalculateDesiredVelocityField()
+{
+	const auto CalculateDesiredVelocity = [this](FTCCell* Cell, const FVector2f& Coords) -> void
+	{
+		FVector4 NormPotential = FVector4
+		{
+			Cell->PotentialGradient[NORTH],
+			Cell->PotentialGradient[WEST],
+			Cell->PotentialGradient[SOUTH],
+			Cell->PotentialGradient[EAST]
+		}.GetSafeNormal();
+		
+		Cell->PotentialGradient[NORTH] = NormPotential.X;
+		Cell->PotentialGradient[WEST] = NormPotential.Y;
+		Cell->PotentialGradient[SOUTH] = NormPotential.Z;
+		Cell->PotentialGradient[EAST] = NormPotential.W;
+
+		Cell->DesiredVelocity = {0, 0};
+		Cell->DesiredVelocity += -GetSpeedField(Cell->Velocity, NORTH) * NormPotential.X * DIRECTION_OFFSETS[NORTH];
+		Cell->DesiredVelocity += -GetSpeedField(Cell->Velocity, WEST) * NormPotential.Y * DIRECTION_OFFSETS[WEST];
+		Cell->DesiredVelocity += -GetSpeedField(Cell->Velocity, SOUTH) * NormPotential.Z * DIRECTION_OFFSETS[SOUTH];
+		Cell->DesiredVelocity += -GetSpeedField(Cell->Velocity, EAST) * NormPotential.W * DIRECTION_OFFSETS[EAST];	
+	};
+
+	Field.ForEachCellPerform(CalculateDesiredVelocity);
 }
 
 float TCSimulator::GaussianDistribution(const float Distance)
@@ -266,11 +312,13 @@ void TCSimulator::Update(const float DeltaSeconds)
 	UpdateVelocityField();
 	UpdateCostField();
 	
-	static bool bSolved = false;
 	if (!bSolved)
 	{
 		Solve({Field.GetResolution() - 1, Field.GetResolution() - 1});
 		bSolved = true;
+		
+		CalculatePotentialGradient();
+		CalculateDesiredVelocityField();
 	}
 }
 
@@ -284,13 +332,31 @@ void TCSimulator::Debug_Draw(const UWorld* World, const float DeltaSeconds)
 			DrawDebugSphere(World, Center, 10.0f, 8, FColor::Green);
 		}
 	
+		//const float DebugBoxExtent = Field.GetCellSize();
+		//const auto DrawDensities = [this, World, DebugBoxExtent](FTCCell* Cell, const FVector2f& Coords)
+		//{
+		//	const FVector2f WorldCoords = Field.GridToWorld(Coords);
+		//	const FLinearColor DebugColor = FLinearColor::LerpUsingHSV(FLinearColor{1.0f, 1.0f, 1.0f, 0.1f},
+		//															   FLinearColor{1.0f, 0.0f, 0.0f, 0.5f}, 
+		//															   Cell->Density);
+		//
+		//	const FVector BoxMin = {WorldCoords.X, WorldCoords.Y, 0};
+		//	const FVector BoxMax = {WorldCoords.X + DebugBoxExtent, WorldCoords.Y + DebugBoxExtent, DebugBoxExtent};
+		//	DrawDebugSolidBox(World, FBox(BoxMin, BoxMax), DebugColor.ToFColor(false));
+		//};
+	//
+		//Field.ForEachCellPerform(DrawDensities);
+	}
+	
+	// Debug potential field.
+	{
 		const float DebugBoxExtent = Field.GetCellSize();
 		const auto DrawDensities = [this, World, DebugBoxExtent](FTCCell* Cell, const FVector2f& Coords)
 		{
 			const FVector2f WorldCoords = Field.GridToWorld(Coords);
 			const FLinearColor DebugColor = FLinearColor::LerpUsingHSV(FLinearColor{1.0f, 1.0f, 1.0f, 0.1f},
 																	   FLinearColor{1.0f, 0.0f, 0.0f, 0.5f}, 
-																	   Cell->Density);
+																	   Cell->Potential / MAX_POTENTIAL);
 		
 			const FVector BoxMin = {WorldCoords.X, WorldCoords.Y, 0};
 			const FVector BoxMax = {WorldCoords.X + DebugBoxExtent, WorldCoords.Y + DebugBoxExtent, DebugBoxExtent};
@@ -301,23 +367,42 @@ void TCSimulator::Debug_Draw(const UWorld* World, const float DeltaSeconds)
 	}
 	
 	// Debug VelocityField.
-	{
-		const float CellSize = Field.GetCellSize();
-		const auto DrawVelocties = [this, World, CellSize](FTCCell* Cell, const FVector2f& Coords) -> void
-		{
-			const FVector2f WorldLocation = Field.GridToWorld(Coords);
-			const FVector2f Direction = Cell->Velocity.IsNearlyZero() ? FVector2f{1.0f, 0.0f} : Cell->Velocity.GetSafeNormal();
-			const FColor DebugColor = FColor::Yellow;
-			DrawDebugCone
-			(
-				World, 
-				{WorldLocation.X + (CellSize / 2), WorldLocation.Y + (CellSize / 2), 0}, 
-				{-Direction.X, -Direction.Y, 0.0f}, 
-				50.0f, PI/6, PI/6, 12, DebugColor
-			);
-		};
-		Field.ForEachCellPerform(DrawVelocties);
-	}
+	//{
+	//	const float CellSize = Field.GetCellSize();
+	//	const auto DrawVelocties = [this, World, CellSize](FTCCell* Cell, const FVector2f& Coords) -> void
+	//	{
+	//		const FVector2f WorldLocation = Field.GridToWorld(Coords);
+	//		const FVector2f Direction = Cell->Velocity.IsNearlyZero() ? FVector2f{1.0f, 0.0f} : Cell->Velocity.GetSafeNormal();
+	//		const FColor DebugColor = FColor::Yellow;
+	//		DrawDebugCone
+	//		(
+	//			World, 
+	//			{WorldLocation.X + (CellSize / 2), WorldLocation.Y + (CellSize / 2), 0}, 
+	//			{-Direction.X, -Direction.Y, 0.0f}, 
+	//			50.0f, PI/6, PI/6, 12, DebugColor
+	//		);
+	//	};
+	//	Field.ForEachCellPerform(DrawVelocties);
+	//}
+	
+	// Debug DesiredVelocityField.
+	//{
+	//	const float CellSize = Field.GetCellSize();
+	//	const auto DrawVelocties = [this, World, CellSize](FTCCell* Cell, const FVector2f& Coords) -> void
+	//	{
+	//		const FVector2f WorldLocation = Field.GridToWorld(Coords);
+	//		const FVector2f Direction = Cell->DesiredVelocity.IsNearlyZero() ? FVector2f{1.0f, 0.0f} : Cell->DesiredVelocity.GetSafeNormal();
+	//		const FColor DebugColor = FColor::Red;
+	//		DrawDebugCone
+	//		(
+	//			World, 
+	//			{WorldLocation.X + (CellSize / 2), WorldLocation.Y + (CellSize / 2), 0}, 
+	//			{-Direction.X, -Direction.Y, 0.0f}, 
+	//			50.0f, PI/6, PI/6, 12, DebugColor
+	//		);
+	//	};
+	//	Field.ForEachCellPerform(DrawVelocties);
+	//}
 }
 
 void TCSimulator::Debug_MoveEntities(const float DeltaSeconds)
