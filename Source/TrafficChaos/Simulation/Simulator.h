@@ -73,6 +73,7 @@ struct FTCCell
 	FVector2f Coords;
 	FVector2f DesiredVelocity;
 	TStaticArray<float, 4> CostField;
+	TStaticArray<float, 4> SpeedField;
 	TStaticArray<float, 4> PotentialGradient;
 };
 
@@ -130,6 +131,7 @@ private:
 	void UpdateCostField();
 	void Solve(const FVector2f& GoalCoords);
 	void CalculatePotentialGradient();
+	void GenerateSpeedField();
 	void CalculateDesiredVelocityField();
 	
 	float GetFiniteDifferenceApproximation(const FVector2f& Coords);

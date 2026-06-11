@@ -84,7 +84,7 @@ void ASimulationActor::Debug_Draw(const float DeltaSeconds)
 			const FVector BoxMax = {WorldCoords.X + DebugBoxExtent, WorldCoords.Y + DebugBoxExtent, 100};
 			DrawDebugSolidBox(World, FBox(BoxMin, BoxMax), FColor(255, 255, 255, 10));
 			
-			const FString String = FString::Printf(TEXT("%.0f"), Cell->Potential);
+			const FString String = FString::Printf(TEXT("%.2f"), Cell->Potential);
 			const FVector StringLocation = {WorldCoords.X + DebugBoxExtent / 2, WorldCoords.Y + DebugBoxExtent / 2, 0.0f}; 
 			DrawDebugString(World, StringLocation , String, this, FColor::Red, DeltaSeconds);
 		};
@@ -117,6 +117,11 @@ void ASimulationActor::Debug_Draw(const float DeltaSeconds)
 	{
 		const auto DrawVelocties = [this, World, Field](const FTCCell* Cell, const FVector2f& Coords) -> void
 		{
+			if (Cell->DesiredVelocity.IsNearlyZero())
+			{
+				return;
+			}
+			
 			const float CellSize = Field.GetCellSize();
 			const FVector2f WorldLocation = Field.GridToWorld(Coords);
 			const FVector2f Direction = Cell->DesiredVelocity.IsNearlyZero() ? FVector2f{1.0f, 0.0f} : Cell->DesiredVelocity.GetSafeNormal();
