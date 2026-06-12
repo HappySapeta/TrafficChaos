@@ -62,14 +62,6 @@ struct FTCCheapestNeighbor
 	}
 };
 
-struct FTCMostOptimalNode
-{
-	bool operator()(const FTCCell& Left, const FTCCell& Right) const
-	{
-		return Left.Potential > Right.Potential;
-	};
-};
-
 class TRAFFICCHAOS_API TCSimulator
 {
 public:
@@ -90,8 +82,7 @@ private:
 	
 	void Solve(const FVector2f& GoalCoords);
 	
-	void UpdateDensityField(const TArray<FVector2f>& EntityPositions);
-	void UpdateCellVelocityField(const TArray<FVector2f>& EntityPositions, const TArray<FVector2f>& EntityVelocities);
+	void UpdateDensityAndVelocityField(const TArray<FVector2f>& EntityPositions, const TArray<FVector2f>& EntityVelocities);
 	void UpdateSpeedField();
 	void UpdateCostField();
 	

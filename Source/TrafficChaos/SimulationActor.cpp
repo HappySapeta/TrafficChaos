@@ -15,10 +15,12 @@ void ASimulationActor::BeginPlay()
 {
 	Super::BeginPlay();
 	Simulator.Initialize(GridResolution, WorldSpan);
-	EntityPositions.Push({WorldSpan * 0.1f, WorldSpan * 0.5f});
-	EntityPositions.Push({WorldSpan * 0.4f, WorldSpan * 0.5f});
-	EntityVelocities.Push({0,-1});
-	EntityVelocities.Push({0,-1});
+	EntityPositions.Push({WorldSpan * 0.0f, WorldSpan * 0.5f});
+	EntityPositions.Push({WorldSpan * 0.3f, WorldSpan * 0.5f});
+	EntityPositions.Push({WorldSpan * 0.6f, WorldSpan * 0.5f});
+	EntityVelocities.Push({0, 1});
+	EntityVelocities.Push({0, 1});
+	EntityVelocities.Push({0, 1});
 }
 
 void ASimulationActor::UpdateEntityPositionsAndVelocities(float DeltaSeconds)
