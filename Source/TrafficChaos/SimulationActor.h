@@ -7,6 +7,18 @@
 #include "Simulation/Simulator.h"
 #include "SimulationActor.generated.h"
 
+USTRUCT(BlueprintType)
+struct FTCEntitySpawnConfiguration
+{
+	GENERATED_BODY()
+	
+	UPROPERTY(EditAnywhere)
+	FVector2f InitialPosition;
+	
+	UPROPERTY(EditAnywhere)
+	FVector2f InitialVelocity;
+};
+
 UCLASS()
 class TRAFFICCHAOS_API ASimulationActor : public AActor
 {
@@ -17,14 +29,22 @@ public:
 	// Sets default values for this actor's properties
 	ASimulationActor();
 	
+	virtual void Tick(const float DeltaSeconds) override;
+	
+protected:
+	
 	virtual void BeginPlay() override;
 	
-	virtual void Tick(float DeltaSeconds) override;
-	void Debug_Draw(float DeltaSeconds);
+private:
+	
+	void DrawDebugGraphics(const float DeltaSeconds);
 
 private:
 	
 	TCSimulator Simulator;
+	
+	UPROPERTY(EditAnywhere, Category = "Entities")
+	TArray<FTCEntitySpawnConfiguration> SpawnConfigurations;
 	
 	UPROPERTY(EditAnywhere, Category = "Simulation", meta = (ClampMin = 1, ClampMax = 100, UIMin = 1, UIMax = 100))
 	int GridResolution = 1;

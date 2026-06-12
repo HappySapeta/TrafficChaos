@@ -1,45 +1,32 @@
 ﻿// Fill out your copyright notice in the Description page of Project Settings.
 
 #include "SimulationActor.h"
-#include "Kismet/KismetMathLibrary.h"
 
 // Sets default values
 ASimulationActor::ASimulationActor()
 {
 	// Set this actor to call Tick() every frame.  You can turn this off to improve performance if you don't need it.
 	PrimaryActorTick.bCanEverTick = true;
-	Simulator.AddEntity();
 }
 
 void ASimulationActor::BeginPlay()
 {
 	Super::BeginPlay();
 	Simulator.Initialize(GridResolution, WorldSpan);
-	
-	const auto AddEntityAtRandomLocation = [this](const float MinRange, const float MaxRange) -> void 
+	for (const FTCEntitySpawnConfiguration& Configuration : SpawnConfigurations)
 	{
-		const float X = UKismetMathLibrary::RandomFloatInRange(MinRange, MaxRange);
-		const float Y = UKismetMathLibrary::RandomFloatInRange(MinRange, MaxRange);
-	
-		Simulator.AddEntity({X, Y});
-	};
-
-	int NumEntities = EntityCount;
-	while (NumEntities > 0)
-	{
-		AddEntityAtRandomLocation(0, WorldSpan);
-		--NumEntities;
+		Simulator.RegisterEntity(Configuration.InitialPosition, Configuration.InitialVelocity);
 	}
 }
 
-void ASimulationActor::Tick(float DeltaSeconds)
+void ASimulationActor::Tick(const float DeltaSeconds)
 {
 	Super::Tick(DeltaSeconds);
 	Simulator.Update(DeltaSeconds);
-	Debug_Draw(DeltaSeconds);
+	DrawDebugGraphics(DeltaSeconds);
 }
 
-void ASimulationActor::Debug_Draw(const float DeltaSeconds)
+void ASimulationActor::DrawDebugGraphics(const float DeltaSeconds)
 {
 	const UWorld* World = GetWorld();
 	const FRpSpatialData<FTCCell>& Field = Simulator.GetFieldData();
@@ -47,8 +34,7 @@ void ASimulationActor::Debug_Draw(const float DeltaSeconds)
 	// Draw entities.
 	if (bDrawEntities)
 	{
-		const FTCEntityArray& EntityPositions = Simulator.GetEntityPositions();
-		for (const FVector2f& Position : EntityPositions.Positions)
+		for (const FVector2f& Position : Simulator.GetEntityPositions())
 		{
 			DrawDebugSphere(World, {Position.X, Position.Y, 0.0f}, 10.0f, 10, FColor::Green);
 		}

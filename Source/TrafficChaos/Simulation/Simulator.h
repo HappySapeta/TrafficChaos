@@ -31,31 +31,6 @@ const TArray<EDirectionIndex> CARDINAL_DIRECTIONS
 	NORTH, WEST, SOUTH, EAST
 };
 
-struct FTCEntityArray
-{
-	void Add(const FVector2f& InitialPosition, const FVector2f InitialVelocity, const float InitialHeading)
-	{
-		Positions.Push(InitialPosition);
-		Velocities.Push(InitialVelocity);
-		HeadingAngles.Push(InitialHeading);
-	
-		++Size;
-	}
-	
-	int Num()
-	{
-		return Size;
-	}
-	
-	TArray<FVector2f> Positions;
-	TArray<FVector2f> Velocities;
-	TArray<float> HeadingAngles;
-	
-private:
-	
-	int Size = 0;
-};
-
 struct FTCCell
 {
 	FTCCell()
@@ -104,14 +79,7 @@ public:
 	{}
 	
 	void Initialize(const float Resolution, const float WorldSize);
-	
-	void AddEntity
-	(
-		const FVector2f& InitialPosition = FVector2f::ZeroVector,
-		const FVector2f InitialVelocity = FVector2f::ZeroVector, 
-		const float InitialHeading = 0.0f
-	);
-	
+	void RegisterEntity(const FVector2f& InitialPosition, const FVector2f& InitialVelocity);
 	void Update(const float DeltaSeconds);
 	
 	const FRpSpatialData<FTCCell>& GetFieldData() const
@@ -119,35 +87,34 @@ public:
 		return Field;
 	}
 
-	const FTCEntityArray& GetEntityPositions() const
+	const TArray<FVector2f>& GetEntityPositions() const
 	{
-		return Entities;
+		return EntityPositions;
 	}
 
 private:
 	
-	void UpdateDensityField();
-	void UpdateVelocityField();
-	void UpdateCostField();
 	void Solve(const FVector2f& GoalCoords);
-	void CalculatePotentialGradient();
-	void GenerateSpeedField();
-	void CalculateDesiredVelocityField();
+	
+	void UpdateEntityPositions(float DeltaSeconds);
+	void UpdateDensityField();
+	void UpdateCellVelocityField();
+	void UpdateSpeedField();
+	void UpdateCostField();
+	
+	void UpdatePotentialGradient();
+	void UpdateDesiredVelocityField();
 	
 	float GetFiniteDifferenceApproximation(const FVector2f& Coords);
 	float GaussianDistribution(float Distance);
-	float GetSpeedField(const FVector2f& Velocity, EDirectionIndex Direction);
 	
 	TArray<FTCCell*> GetNeighbors(const FVector2f& Coords);
 
 private:
 	
-	void Debug_MoveEntities(const float DeltaSeconds);
-
-private:
-	
 	FRpSpatialData<FTCCell> Field;
-	FTCEntityArray Entities;
+	TArray<FVector2f> EntityPositions;
+	TArray<FVector2f> EntityVelocities;
 	
 	TArray<FTCCell*> Knowns;
 	TArray<FTCCell*> Unknowns;
