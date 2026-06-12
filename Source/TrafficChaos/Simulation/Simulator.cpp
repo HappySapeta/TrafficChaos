@@ -27,18 +27,10 @@ void TCSimulator::Initialize(const float Resolution, const float WorldSize)
 	Field.ForEachCellPerform(InitializeCells);
 }
 
-void TCSimulator::RegisterEntity(const FVector2f& InitialPosition, const FVector2f& InitialVelocity)
+void TCSimulator::Update(const TArray<FVector2f>& EntityPositions, const TArray<FVector2f>& EntityVelocities, const float DeltaSeconds)
 {
-	EntityPositions.Add(InitialPosition);
-	EntityVelocities.Add(InitialVelocity);
-}
-
-void TCSimulator::Update(const float DeltaSeconds)
-{
-	UpdateEntityPositions(DeltaSeconds);
-	
-	UpdateDensityField();
-	UpdateCellVelocityField();
+	UpdateDensityField(EntityPositions);
+	UpdateCellVelocityField(EntityPositions, EntityVelocities);
 	UpdateSpeedField();
 	UpdateCostField();
 	
@@ -113,15 +105,7 @@ void TCSimulator::Solve(const FVector2f& GoalCoords)
 	}
 }
 
-void TCSimulator::UpdateEntityPositions(const float DeltaSeconds)
-{
-	for (int EntityIndex = 0; EntityIndex < EntityPositions.Num(); ++EntityIndex)
-	{
-		EntityPositions[EntityIndex] = EntityPositions[EntityIndex] + EntityVelocities[EntityIndex] * DeltaSeconds;
-	}
-}
-
-void TCSimulator::UpdateDensityField()
+void TCSimulator::UpdateDensityField(const TArray<FVector2f>& EntityPositions)
 {
 	const auto ResetDensities = [](FTCCell* Cell, const FVector2f& Coords) -> void
 	{
@@ -131,6 +115,11 @@ void TCSimulator::UpdateDensityField()
 	
 	for (const FVector2f& EntityPosition : EntityPositions)
 	{
+		if (!Field.IsValidWorldPosition(EntityPosition))
+		{
+			continue;
+		}
+		
 		const FVector2f GridCoords = Field.WorldToGridSnapped(EntityPosition);
 		
 		const auto ApplyDensity = [this, GridCoords](const FVector2f Offset, const float Distance)
@@ -153,7 +142,7 @@ void TCSimulator::UpdateDensityField()
 	}
 }
 
-void TCSimulator::UpdateCellVelocityField()
+void TCSimulator::UpdateCellVelocityField(const TArray<FVector2f>& EntityPositions, const TArray<FVector2f>& EntityVelocities)
 {
 	// Reset velocities to zero.
 	const auto ResetVelocities = [](FTCCell* Cell, const FVector2f& Coords) -> void
@@ -164,6 +153,11 @@ void TCSimulator::UpdateCellVelocityField()
 	
 	for (int EntityIndex = 0; EntityIndex < EntityPositions.Num(); ++EntityIndex)
 	{
+		if (!Field.IsValidWorldPosition(EntityPositions[EntityIndex]))
+		{
+			continue;
+		}
+		
 		const FVector2f& EntityVelocity = EntityVelocities[EntityIndex];
 		const FVector2f& GridLocation = Field.WorldToGridSnapped(EntityPositions[EntityIndex]);
 		

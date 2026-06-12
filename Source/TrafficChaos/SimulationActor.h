@@ -7,18 +7,6 @@
 #include "Simulation/Simulator.h"
 #include "SimulationActor.generated.h"
 
-USTRUCT(BlueprintType)
-struct FTCEntitySpawnConfiguration
-{
-	GENERATED_BODY()
-	
-	UPROPERTY(EditAnywhere)
-	FVector2f InitialPosition;
-	
-	UPROPERTY(EditAnywhere)
-	FVector2f InitialVelocity;
-};
-
 UCLASS()
 class TRAFFICCHAOS_API ASimulationActor : public AActor
 {
@@ -37,22 +25,19 @@ protected:
 	
 private:
 	
+	void UpdateEntityPositionsAndVelocities(float DeltaSeconds);
+	
 	void DrawDebugGraphics(const float DeltaSeconds);
-
+	
 private:
 	
-	TCSimulator Simulator;
-	
-	UPROPERTY(EditAnywhere, Category = "Entities")
-	TArray<FTCEntitySpawnConfiguration> SpawnConfigurations;
-	
-	UPROPERTY(EditAnywhere, Category = "Simulation", meta = (ClampMin = 1, ClampMax = 100, UIMin = 1, UIMax = 100))
+	UPROPERTY(EditAnywhere, Category = "Simulation Settings", meta = (ClampMin = 1, ClampMax = 100, UIMin = 1, UIMax = 100))
 	int GridResolution = 1;
 	
-	UPROPERTY(EditAnywhere, Category = "Simulation", meta = (ClampMin = 1, UIMin = 1))
+	UPROPERTY(EditAnywhere, Category = "Simulation Settings", meta = (ClampMin = 1, UIMin = 1))
 	float WorldSpan = 1;
 	
-	UPROPERTY(EditAnywhere, Category = "Simulation", meta = (ClampMin = 0, UIMin = 0))
+	UPROPERTY(EditAnywhere, Category = "Simulation Settings", meta = (ClampMin = 0, UIMin = 0))
 	int EntityCount = 1;
 	
 	UPROPERTY(EditAnywhere, Category = "Debug")
@@ -69,4 +54,11 @@ private:
 	
 	UPROPERTY(EditAnywhere, Category = "Debug")
 	bool bDrawEntities = true;
+	
+private:
+	
+	TCSimulator Simulator;
+	
+	TArray<FVector2f> EntityPositions;
+	TArray<FVector2f> EntityVelocities;
 };

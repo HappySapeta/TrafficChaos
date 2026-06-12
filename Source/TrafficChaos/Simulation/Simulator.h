@@ -79,26 +79,19 @@ public:
 	{}
 	
 	void Initialize(const float Resolution, const float WorldSize);
-	void RegisterEntity(const FVector2f& InitialPosition, const FVector2f& InitialVelocity);
-	void Update(const float DeltaSeconds);
+	void Update(const TArray<FVector2f>& EntityPositions, const TArray<FVector2f>& EntityVelocities, const float DeltaSeconds);
 	
 	const FRpSpatialData<FTCCell>& GetFieldData() const
 	{
 		return Field;
 	}
 
-	const TArray<FVector2f>& GetEntityPositions() const
-	{
-		return EntityPositions;
-	}
-
 private:
 	
 	void Solve(const FVector2f& GoalCoords);
 	
-	void UpdateEntityPositions(float DeltaSeconds);
-	void UpdateDensityField();
-	void UpdateCellVelocityField();
+	void UpdateDensityField(const TArray<FVector2f>& EntityPositions);
+	void UpdateCellVelocityField(const TArray<FVector2f>& EntityPositions, const TArray<FVector2f>& EntityVelocities);
 	void UpdateSpeedField();
 	void UpdateCostField();
 	
@@ -113,8 +106,6 @@ private:
 private:
 	
 	FRpSpatialData<FTCCell> Field;
-	TArray<FVector2f> EntityPositions;
-	TArray<FVector2f> EntityVelocities;
 	
 	TArray<FTCCell*> Knowns;
 	TArray<FTCCell*> Unknowns;
