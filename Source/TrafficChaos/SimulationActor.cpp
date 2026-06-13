@@ -134,14 +134,10 @@ void ASimulationActor::DrawDebugGraphics(const float DeltaSeconds)
 			const float CellSize = Field.GetCellSize();
 			const FVector2f WorldLocation = Field.GridToWorld(Coords);
 			const FVector2f Direction = Cell->DesiredVelocity.IsNearlyZero() ? FVector2f{1.0f, 0.0f} : Cell->DesiredVelocity.GetSafeNormal();
-			const FColor DebugColor = FColor::Red;
-			DrawDebugCone
-			(
-				World, 
-				{WorldLocation.X + (CellSize / 2), WorldLocation.Y + (CellSize / 2), 0}, 
-				{-Direction.X, -Direction.Y, 0.0f}, 
-				50.0f, PI/6, PI/6, 12, DebugColor
-			);
+			const FVector LineStart = {WorldLocation.X, WorldLocation.Y, 0};
+			const FVector LineEnd = {WorldLocation.X + Direction.X * CellSize / 2, WorldLocation.Y + Direction.Y * CellSize / 2, 0};
+			DrawDebugLine(World, LineStart, LineStart, FColor::Cyan, false, -1, 0, 7.0f);
+			DrawDebugLine(World, LineStart, LineEnd, FColor::Cyan, false, -1, 0, 2.0f);
 		};
 		Field.ForEachCellPerform(DrawVelocties);
 	}
