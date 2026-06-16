@@ -1,19 +1,5 @@
 ﻿#include "Simulator.h"
 
-constexpr float GAUSSIAN_FALLOFF = 1.0;
-constexpr float GAUSSIAN_SCALE = 1.0f;
-constexpr float MAX_TOPO_SPEED = 30;
-constexpr float MIN_TOPO_SPEED = 10;
-constexpr float MIN_SLOPE = 0;
-constexpr float MAX_SLOPE = 1;
-constexpr float MIN_DENSITY = 0.5f;
-constexpr float MAX_DENSITY = 5;
-constexpr float DENSITY_EXPONENT = 1;
-constexpr int VELOCITY_LOOKUP_OFFSET = 2;
-constexpr int DENSITY_LOOKUP_OFFSET = 1;
-constexpr float PATH_COST_CONSTANT = 1;
-constexpr float TIME_COST_CONSTANT = 1;
-
 constexpr float MAX_COST = TNumericLimits<float>::Max();
 
 struct FTCMostOptimalNode
@@ -41,7 +27,7 @@ void TCSimulator::Update(const TArray<FVector2f>& EntityPositions, const TArray<
 	UpdateSpeedField();
 	UpdateCostField();
 	
-	Solve({Field.GetResolution() * 0.5f, 0});
+	Solve({static_cast<float>(Field.GetResolution() / 2), 0});
 	
 	UpdatePotentialGradient();
 	UpdateDesiredVelocityField();
@@ -49,66 +35,52 @@ void TCSimulator::Update(const TArray<FVector2f>& EntityPositions, const TArray<
 
 void TCSimulator::Solve(const FVector2f& GoalCoords)
 {
-	FTCCell* GoalCell = Field.GetDataAt(GoalCoords);
-	checkf(GoalCell, TEXT("Invalid coordinates for goal."));
+	checkf(Field.IsValidGridCoordinate(GoalCoords), TEXT("Invalid coordinates for goal."));
 	
+	// 1. Clear all lists. 
 	Knowns.Empty();
-	Unknowns.Empty();
 	Candidates.Empty();
-
-	const auto InitiallizePotentials = [this, GoalCell](FTCCell* Cell, const FVector2f& Coords)->void
+	
+	// 1. Get the goal cell.
+	FTCCell* GoalCell = Field.GetDataAt(GoalCoords);
+	GoalCell->Potential = 0;
+	Candidates.PushFirst(GoalCell);
+	
+	// 2. Initialize potentials
+	const auto InitializePotential = [GoalCoords](FTCCell* Cell, const FVector2f& Coords)
 	{
-		if(Cell != GoalCell)
+		if (Coords != GoalCoords)
 		{
 			Cell->Potential = MAX_COST;
-			Unknowns.Push(Cell);
-		}
-		else
-		{
-			Cell->Potential = 0.0f;
-			Knowns.Push(Cell);
 		}
 	};
-	Field.ForEachCellPerform(InitiallizePotentials);
+	Field.ForEachCellPerform(InitializePotential);
 	
-	for(int Index = 0; Index < Unknowns.Num(); ++Index)
+	// 4. BFS
+	while (!Candidates.IsEmpty())
 	{
-		FTCCell* Cell = Unknowns[Index];
+		FTCCell* Current = Candidates.First();
+		Candidates.PopFirst();
 		
-		float& CurrentPotential = Cell->Potential;
-		const float NewPotential = GetFiniteDifferenceApproximation(Cell->Coords);
-		if(NewPotential < CurrentPotential)
+		const float CurrentCost = Current->Potential;
+		const TArray<FTCCell*> Neighbors = GetNeighbors(Current->Coords);
+		for (FTCCell* Neighbor : Neighbors)
 		{
-			CurrentPotential = NewPotential;
-			Unknowns.RemoveSwap(Cell);
-			Candidates.HeapPush(Cell, FTCMostOptimalNode());
-		}
-	}
-
-	while(!Candidates.IsEmpty())
-	{
-		FTCCell* Cell;
-		Candidates.HeapPop(Cell, FTCMostOptimalNode());
-
-		Knowns.Push(Cell);
-
-		for(FTCCell* Neighbor : GetNeighbors(Cell->Coords))
-		{
-			if(Knowns.Contains(Neighbor))
+			if (Knowns.Contains(Neighbor))
 			{
 				continue;
 			}
-
+			
 			float& CurrentPotential = Neighbor->Potential;
 			const float NewPotential = GetFiniteDifferenceApproximation(Neighbor->Coords);
 			if(NewPotential < CurrentPotential)
 			{
 				CurrentPotential = NewPotential;
-				
-				Unknowns.RemoveSwap(Neighbor);
-				Candidates.HeapPush(Neighbor, FTCMostOptimalNode());
+				Candidates.PushLast(Neighbor);
 			}
 		}
+		
+		Knowns.Add(Current);
 	}
 }
 
@@ -130,29 +102,29 @@ void TCSimulator::UpdateDensityAndVelocityField(const TArray<FVector2f>& EntityP
 		
 		if(FTCCell* SouthEastCell = Field.GetDataAt(ClosestCellCenterCoords, D_SOUTH_EAST)) // C
 		{
-			const float DensityContribution = FMath::Pow(std::min(Delta.X, Delta.Y), DENSITY_EXPONENT);
-			SouthEastCell->Density += std::max(DensityContribution, MIN_DENSITY);
+			const float DensityContribution = FMath::Pow(std::min(Delta.X, Delta.Y), SimParameters.DensityExponent);
+			SouthEastCell->Density += std::max(DensityContribution, SimParameters.MinDensity);
 			SouthEastCell->Velocity += DensityContribution * EntityVelocity;
 		}
 
 		if(FTCCell* EastCell = Field.GetDataAt(ClosestCellCenterCoords, D_EAST)) // D
 		{
-			const float DensityContribution = FMath::Pow(std::min(Delta.X, 1 - Delta.Y), DENSITY_EXPONENT);
-			EastCell->Density += std::min(DensityContribution, MIN_DENSITY);
+			const float DensityContribution = FMath::Pow(std::min(Delta.X, 1 - Delta.Y), SimParameters.DensityExponent);
+			EastCell->Density += std::min(DensityContribution, SimParameters.MinDensity);
 			EastCell->Velocity += DensityContribution * EntityVelocity;
 		}
 
 		if(FTCCell* ClosestCell = Field.GetDataAt(ClosestCellCenterCoords)) // A
 		{
-			const float DensityContribution = FMath::Pow(std::min(1 - Delta.X, 1 - Delta.Y), DENSITY_EXPONENT);
-			ClosestCell->Density += std::min(DensityContribution, MIN_DENSITY);
+			const float DensityContribution = FMath::Pow(std::min(1 - Delta.X, 1 - Delta.Y), SimParameters.DensityExponent);
+			ClosestCell->Density += std::min(DensityContribution, SimParameters.MinDensity);
 			ClosestCell->Velocity += DensityContribution * EntityVelocity;
 		}
 
 		if(FTCCell* SouthCell = Field.GetDataAt(ClosestCellCenterCoords, D_SOUTH)) // B
 		{
-			const float DensityContribution = FMath::Pow(std::min(1 - Delta.X, Delta.Y), DENSITY_EXPONENT);
-			SouthCell->Density += std::min(DensityContribution, MIN_DENSITY);
+			const float DensityContribution = FMath::Pow(std::min(1 - Delta.X, Delta.Y), SimParameters.DensityExponent);
+			SouthCell->Density += std::min(DensityContribution, SimParameters.MinDensity);
 			SouthCell->Velocity += DensityContribution * EntityVelocity;
 		}
 	}
@@ -177,30 +149,30 @@ void TCSimulator::UpdateSpeedField()
 			const FVector2f& Direction = DIRECTION_OFFSETS[DirectionIndex];
 			
 			float TempFlowSpeed = 0.1f;
-			if(const FTCCell* NeighborCell = Field.GetDataAt(Coords, Direction * static_cast<float>(VELOCITY_LOOKUP_OFFSET)))
+			if(const FTCCell* NeighborCell = Field.GetDataAt(Coords, Direction * static_cast<float>(SimParameters.VelocityLookupOffset)))
 			{
 				TempFlowSpeed = FMath::Max(FVector2f::DotProduct(NeighborCell->Velocity, Direction.GetSafeNormal()), 0.1f);
 			}
 			const float FlowSpeed = TempFlowSpeed;
 
-			float TempNeighborDensity = MIN_DENSITY;
-			if(FTCCell* NeighborCell = Field.GetDataAt(Coords, Direction * static_cast<float>(DENSITY_LOOKUP_OFFSET)))
+			float TempNeighborDensity = SimParameters.MinDensity;
+			if(FTCCell* NeighborCell = Field.GetDataAt(Coords, Direction * static_cast<float>(SimParameters.DensityLookupOffset)))
 			{
 				TempNeighborDensity = NeighborCell->Density;
 			}
 			const float NeighborDensity = TempNeighborDensity;
 			
-			if(NeighborDensity <= MIN_DENSITY)
+			if(NeighborDensity <= SimParameters.MinDensity)
 			{
-				Cell->SpeedField[DirectionIndex] = MAX_TOPO_SPEED;
+				Cell->SpeedField[DirectionIndex] = SimParameters.MaxTopoSpeed;
 			}
-			else if(NeighborDensity >= MAX_DENSITY)
+			else if(NeighborDensity >= SimParameters.MaxDensity)
 			{
 				Cell->SpeedField[DirectionIndex] = FlowSpeed;
 			}
 			else
 			{
-				Cell->SpeedField[DirectionIndex] = MAX_TOPO_SPEED + ((NeighborDensity - MIN_DENSITY)/(MAX_DENSITY - MIN_DENSITY)) * (FlowSpeed - MAX_TOPO_SPEED);	
+				Cell->SpeedField[DirectionIndex] = SimParameters.MaxTopoSpeed + ((NeighborDensity - SimParameters.MinDensity)/(SimParameters.MaxDensity - SimParameters.MinDensity)) * (FlowSpeed - SimParameters.MaxTopoSpeed);	
 			}
 		}
 	};
@@ -224,7 +196,7 @@ void TCSimulator::UpdateCostField()
 			const float SpeedField = Cell->SpeedField[DirectionIndex];
 			if(SpeedField != 0)
 			{
-				Cell->CostField[DirectionIndex] = (PATH_COST_CONSTANT * SpeedField + TIME_COST_CONSTANT) / SpeedField;
+				Cell->CostField[DirectionIndex] = (SimParameters.PathCostConstant * SpeedField + SimParameters.TimeCostConstant) / SpeedField;
 			}
 			else
 			{
@@ -344,7 +316,7 @@ float TCSimulator::GetFiniteDifferenceApproximation(const FVector2f& Coords)
 
 float TCSimulator::GaussianDistribution(const float Distance)
 {
-	return FMath::Exp(-1 * FMath::Square(Distance) / GAUSSIAN_FALLOFF) * GAUSSIAN_SCALE;
+	return FMath::Exp(-1 * FMath::Square(Distance) / SimParameters.GaussianFallOff) * SimParameters.GaussianScale;
 }
 
 TArray<FTCCell*> TCSimulator::GetNeighbors(const FVector2f& Coords)

@@ -13,11 +13,13 @@ class TRAFFICCHAOS_API ASimulationActor : public AActor
 	GENERATED_BODY()
 
 public:
-
+	
 	// Sets default values for this actor's properties
 	ASimulationActor();
 	
 	virtual void Tick(const float DeltaSeconds) override;
+	
+	virtual void PostEditChangeProperty(struct FPropertyChangedEvent& PropertyChangedEvent) override;
 	
 protected:
 	
@@ -56,6 +58,9 @@ private:
 	bool bDrawEntities = true;
 	
 private:
+	
+	UPROPERTY(EditAnywhere)
+	FTCSimulationParameters Parameters;
 	
 	TCSimulator Simulator;
 	

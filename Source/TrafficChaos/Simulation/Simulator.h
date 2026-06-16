@@ -2,6 +2,8 @@
 
 #include "CoreMinimal.h"
 #include "SpatialData.h"
+#include "Containers/Deque.h"
+#include "Simulator.generated.h"
 
 const FVector2f D_NORTH			{ 0, -1};
 const FVector2f D_NORTH_WEST	{-1, -1};
@@ -62,6 +64,51 @@ struct FTCCheapestNeighbor
 	}
 };
 
+USTRUCT()
+struct FTCSimulationParameters
+{
+	GENERATED_BODY()
+	
+	UPROPERTY(EditAnywhere)
+	float GaussianFallOff = 1.0;
+	
+	UPROPERTY(EditAnywhere)
+	float GaussianScale = 1.0f;
+	
+	UPROPERTY(EditAnywhere)
+	float MaxTopoSpeed = 30;
+	
+	UPROPERTY(EditAnywhere)
+	float MinTopoSpeed = 10;
+	
+	UPROPERTY(EditAnywhere)
+	float MinSlope = 0;
+	
+	UPROPERTY(EditAnywhere)
+	float MaxSlope = 1;
+	
+	UPROPERTY(EditAnywhere)
+	float MinDensity = 0;
+	
+	UPROPERTY(EditAnywhere)
+	float MaxDensity = 5;
+	
+	UPROPERTY(EditAnywhere)
+	float DensityExponent = 1;
+	
+	UPROPERTY(EditAnywhere)
+	int VelocityLookupOffset = 3;
+	
+	UPROPERTY(EditAnywhere)
+	int DensityLookupOffset = 2;
+	
+	UPROPERTY(EditAnywhere)
+	float PathCostConstant = 1;
+	
+	UPROPERTY(EditAnywhere)
+	float TimeCostConstant = 1;
+};
+
 class TRAFFICCHAOS_API TCSimulator
 {
 public:
@@ -76,6 +123,11 @@ public:
 	const FRpSpatialData<FTCCell>& GetFieldData() const
 	{
 		return Field;
+	}
+
+	void SetSimulationParameters(const FTCSimulationParameters& Parameters)
+	{
+		SimParameters = Parameters; 
 	}
 
 private:
@@ -100,7 +152,10 @@ private:
 	
 	TArray<FTCCell*> Knowns;
 	TArray<FTCCell*> Unknowns;
-	TArray<FTCCell*> Candidates;
+	TDeque<FTCCell*> Candidates;
+	
+	FTCSimulationParameters SimParameters;
 	
 	bool bSolved = false;
+	
 }; 
