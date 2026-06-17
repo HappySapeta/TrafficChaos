@@ -7,6 +7,30 @@
 #include "Simulation/Simulator.h"
 #include "SimulationActor.generated.h"
 
+USTRUCT(BlueprintType)
+struct FTCSpawnConfiguration
+{
+	GENERATED_BODY()
+	
+	UPROPERTY(EditAnywhere)
+	FVector2f Origin = {0, 0};
+	
+	UPROPERTY(EditAnywhere)
+	float SpawnRange = 1.0f;
+	
+	UPROPERTY(EditAnywhere)
+	float SpawnAreaWidth = 1.0f;
+	
+	UPROPERTY(EditAnywhere)
+	float Rotation = 0.0f;
+	
+	UPROPERTY(EditAnywhere)
+	FVector2f Velocity = {0, 0};
+	
+	UPROPERTY(EditAnywhere)
+	int Amount = 1;
+};
+
 UCLASS()
 class TRAFFICCHAOS_API ASimulationActor : public AActor
 {
@@ -28,6 +52,8 @@ protected:
 private:
 	
 	void UpdateEntityPositionsAndVelocities(float DeltaSeconds);
+	
+	void SpawnEntities();
 	
 	void DrawDebugGraphics(const float DeltaSeconds);
 	
@@ -61,6 +87,9 @@ private:
 	
 	UPROPERTY(EditAnywhere)
 	FTCSimulationParameters Parameters;
+	
+	UPROPERTY(EditAnywhere)
+	TArray<FTCSpawnConfiguration> SpawnConfigurations;
 	
 	TCSimulator Simulator;
 	

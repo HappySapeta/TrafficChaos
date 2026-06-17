@@ -119,6 +119,8 @@ public:
 	
 	void Initialize(const float Resolution, const float WorldSize);
 	void Update(const TArray<FVector2f>& EntityPositions, const TArray<FVector2f>& EntityVelocities, const float DeltaSeconds);
+	void PerformCrowdAdvection(const TArray<FVector2f>& EntityPositions, const TArray<FVector2f>& EntityVelocities, TArray<FVector2f>& OutNewVelocities, float
+							   DeltaSeconds);
 	
 	const FRpSpatialData<FTCCell>& GetFieldData() const
 	{
@@ -142,7 +144,7 @@ private:
 	void UpdateDesiredVelocityField();
 	
 	float GetFiniteDifferenceApproximation(const FVector2f& Coords);
-	float GaussianDistribution(float Distance);
+	float GaussianDistribution(const float Distance);
 	
 	TArray<FTCCell*> GetNeighbors(const FVector2f& Coords);
 
@@ -151,7 +153,6 @@ private:
 	FRpSpatialData<FTCCell> Field;
 	
 	TArray<FTCCell*> Knowns;
-	TArray<FTCCell*> Unknowns;
 	TDeque<FTCCell*> Candidates;
 	
 	FTCSimulationParameters SimParameters;

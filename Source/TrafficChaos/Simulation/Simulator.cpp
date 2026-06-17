@@ -1,14 +1,10 @@
 ﻿#include "Simulator.h"
 
 constexpr float MAX_COST = TNumericLimits<float>::Max();
+constexpr float PED_SPEED = 1.0f;
+constexpr float RELAXATION_TIME = 0.1f;
+constexpr float PED_DELTA = 1.0f;
 
-struct FTCMostOptimalNode
-{
-	bool operator()(const FTCCell& Left, const FTCCell& Right) const
-	{
-		return Left.Potential < Right.Potential;
-	};
-};
 
 void TCSimulator::Initialize(const float Resolution, const float WorldSize)
 {
@@ -27,10 +23,44 @@ void TCSimulator::Update(const TArray<FVector2f>& EntityPositions, const TArray<
 	UpdateSpeedField();
 	UpdateCostField();
 	
-	Solve({static_cast<float>(Field.GetResolution() / 2), 0});
+	if (!bSolved)
+	{
+		Solve({static_cast<float>(Field.GetResolution() / 2), 0});
+		bSolved = true;
+	}
 	
 	UpdatePotentialGradient();
 	UpdateDesiredVelocityField();
+}
+
+void TCSimulator::PerformCrowdAdvection
+(
+	const TArray<FVector2f>& EntityPositions, 
+	const TArray<FVector2f>& EntityVelocities,
+	TArray<FVector2f>& OutNewVelocities,
+	const float DeltaSeconds
+)
+{
+	const int NumEntities = EntityPositions.Num();
+	check(NumEntities == EntityVelocities.Num());
+	OutNewVelocities.Reserve(NumEntities);
+	
+	for (int EntityIndex = 0; EntityIndex < NumEntities; ++EntityIndex)
+	{
+		const FVector2f& EntityPosition = EntityPositions[EntityIndex];
+		if (!Field.IsValidWorldPosition(EntityPosition))
+		{
+			continue;
+		}
+		
+		const FVector2f GridLocation = Field.WorldToGrid(EntityPosition);
+		const FVector2f& DesiredVelocity = Field.GetDataAt(GridLocation)->DesiredVelocity;
+		const FVector2f& CurrentVelocity = EntityVelocities[EntityIndex];
+		const FVector2f Direction = (DesiredVelocity.GetSafeNormal() * PED_DELTA).GetSafeNormal();
+		const FVector2f Acceleration = 1/RELAXATION_TIME * (PED_SPEED * Direction - CurrentVelocity);
+		
+		OutNewVelocities[EntityIndex] = EntityVelocities[EntityIndex] + Acceleration * DeltaSeconds;
+	}
 }
 
 void TCSimulator::Solve(const FVector2f& GoalCoords)
@@ -56,13 +86,15 @@ void TCSimulator::Solve(const FVector2f& GoalCoords)
 	};
 	Field.ForEachCellPerform(InitializePotential);
 	
+	int Count = 0;
 	// 4. BFS
 	while (!Candidates.IsEmpty())
 	{
 		FTCCell* Current = Candidates.First();
 		Candidates.PopFirst();
 		
-		const float CurrentCost = Current->Potential;
+		++Count;
+		
 		const TArray<FTCCell*> Neighbors = GetNeighbors(Current->Coords);
 		for (FTCCell* Neighbor : Neighbors)
 		{
@@ -82,6 +114,8 @@ void TCSimulator::Solve(const FVector2f& GoalCoords)
 		
 		Knowns.Add(Current);
 	}
+	
+	UE_LOG(LogTemp, Warning, TEXT("Solved. %d"), Count);
 }
 
 void TCSimulator::UpdateDensityAndVelocityField(const TArray<FVector2f>& EntityPositions, const TArray<FVector2f>& EntityVelocities)
@@ -95,7 +129,7 @@ void TCSimulator::UpdateDensityAndVelocityField(const TArray<FVector2f>& EntityP
 			continue;
 		}
 		
-		const FVector2f EntityPreciseCoords = Field.WorldToGridPrecise(EntityPosition);
+		const FVector2f EntityPreciseCoords = Field.WorldToGridCentered(EntityPosition);
 		const FVector2f ClosestCellCenterCoords = {FMath::RoundToInt(EntityPreciseCoords.X) - 0.5f, FMath::RoundToInt(EntityPreciseCoords.Y) - 0.5f};
 		
 		const FVector2f Delta = EntityPreciseCoords - ClosestCellCenterCoords;

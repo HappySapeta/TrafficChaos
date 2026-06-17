@@ -1,6 +1,8 @@
 ﻿// Fill out your copyright notice in the Description page of Project Settings.
 
 #include "SimulationActor.h"
+
+#include "Kismet/KismetMathLibrary.h"
 constexpr float ENTITY_MOVEMENT_RADIUS = 5.0f;
 constexpr float ENTITY_MOVEMENT_SPEED = 0.0f;
 
@@ -26,12 +28,7 @@ void ASimulationActor::BeginPlay()
 {
 	Super::BeginPlay();
 	Simulator.Initialize(GridResolution, WorldSpan);
-	EntityPositions.Push({WorldSpan * 0.0f, WorldSpan * 0.5f});
-	EntityPositions.Push({WorldSpan * 0.3f, WorldSpan * 0.5f});
-	EntityPositions.Push({WorldSpan * 0.6f, WorldSpan * 0.5f});
-	EntityVelocities.Push({0, 1});
-	EntityVelocities.Push({0, 1});
-	EntityVelocities.Push({0, 1});
+	SpawnEntities();
 }
 
 void ASimulationActor::UpdateEntityPositionsAndVelocities(float DeltaSeconds)
@@ -44,6 +41,31 @@ void ASimulationActor::UpdateEntityPositionsAndVelocities(float DeltaSeconds)
 	{
 		EntityPositions[EntityIndex] += {PosX, PosY};
 		EntityVelocities[EntityIndex] = {PosX / DeltaSeconds, PosY / DeltaSeconds};
+	}
+}
+
+void ASimulationActor::SpawnEntities()
+{
+	for (const FTCSpawnConfiguration& Configuration : SpawnConfigurations)
+	{
+		const float& SpawnRange = Configuration.SpawnRange;
+		const float& H = Configuration.Origin.X;
+		const float& K = Configuration.Origin.Y;
+		const float& A = Configuration.SpawnAreaWidth;
+		const float& R = Configuration.Rotation;
+		int NumSpawned = 0;
+		while (NumSpawned < Configuration.Amount)
+		{
+			const float S = UKismetMathLibrary::RandomFloatInRange(0, SpawnRange);
+			const float T = UKismetMathLibrary::RandomFloatInRange(0, 2 * PI);
+			const float X = FMath::Clamp(S * (A * FMath::Cos(T) * FMath::Cos(R) - FMath::Sin(T) * FMath::Sin(R)) + H, 0, SpawnRange);
+			const float Y = FMath::Clamp(S * (A * FMath::Cos(T) * FMath::Sin(R) + FMath::Sin(T) * FMath::Cos(R)) + K, 0, SpawnRange);
+			
+			EntityPositions.Push({X, Y});
+			EntityVelocities.Push({Configuration.Velocity});
+			
+			++NumSpawned;
+		}
 	}
 }
 
