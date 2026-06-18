@@ -9,9 +9,14 @@ constexpr float ENTITY_MOVEMENT_SPEED = 0.0f;
 void ASimulationActor::PostEditChangeProperty(struct FPropertyChangedEvent& PropertyChangedEvent)
 {
 	FName PropertyName = (PropertyChangedEvent.MemberProperty != nullptr) ? PropertyChangedEvent.MemberProperty->GetFName() : NAME_None;
-	if (PropertyName == GET_MEMBER_NAME_CHECKED(ASimulationActor, Parameters))
+	if (PropertyName == GET_MEMBER_NAME_CHECKED(ASimulationActor, SimParameters))
 	{
-		Simulator.SetSimulationParameters(Parameters);
+		Simulator.SetSimulationParameters(SimParameters);
+	}
+	
+	if (PropertyName == GET_MEMBER_NAME_CHECKED(ASimulationActor, PedParameters))
+	{
+		Simulator.SetPedParameters(PedParameters);
 	}
 	
 	Super::PostEditChangeProperty(PropertyChangedEvent);
@@ -28,19 +33,18 @@ void ASimulationActor::BeginPlay()
 {
 	Super::BeginPlay();
 	Simulator.Initialize(GridResolution, WorldSpan);
+	Simulator.SetSimulationParameters(SimParameters);
+	Simulator.SetPedParameters(PedParameters);
 	SpawnEntities();
 }
 
-void ASimulationActor::UpdateEntityPositionsAndVelocities(float DeltaSeconds)
+void ASimulationActor::UpdateEntityPositionsAndVelocities(const float DeltaSeconds)
 {
-	const float Time = GetWorld()->GetTimeSeconds();	
-	const float PosX = 0; //ENTITY_MOVEMENT_RADIUS * FMath::Cos(Time * ENTITY_MOVEMENT_SPEED);
-	const float PosY = ENTITY_MOVEMENT_RADIUS * FMath::Sin(Time * ENTITY_MOVEMENT_SPEED);
-	
 	for (int EntityIndex = 0; EntityIndex < EntityPositions.Num(); ++EntityIndex)
 	{
-		EntityPositions[EntityIndex] += {PosX, PosY};
-		EntityVelocities[EntityIndex] = {PosX / DeltaSeconds, PosY / DeltaSeconds};
+		const FVector2f& DesiredVelocity = EntityDesiredVelocities[EntityIndex];
+		EntityPositions[EntityIndex] += DesiredVelocity * DeltaSeconds;
+		EntityVelocities[EntityIndex] = DesiredVelocity;
 	}
 }
 
@@ -63,6 +67,7 @@ void ASimulationActor::SpawnEntities()
 			
 			EntityPositions.Push({X, Y});
 			EntityVelocities.Push({Configuration.Velocity});
+			EntityDesiredVelocities.Push({0, 0});
 			
 			++NumSpawned;
 		}
@@ -72,8 +77,9 @@ void ASimulationActor::SpawnEntities()
 void ASimulationActor::Tick(const float DeltaSeconds)
 {
 	Super::Tick(DeltaSeconds);
-	//UpdateEntityPositionsAndVelocities(DeltaSeconds);
 	Simulator.Update(EntityPositions, EntityVelocities, DeltaSeconds);
+	Simulator.PerformCrowdAdvection(EntityPositions, EntityVelocities, EntityDesiredVelocities, DeltaSeconds);
+	UpdateEntityPositionsAndVelocities(DeltaSeconds);
 	DrawDebugGraphics(DeltaSeconds);
 }
 

@@ -109,6 +109,21 @@ struct FTCSimulationParameters
 	float TimeCostConstant = 1;
 };
 
+USTRUCT()
+struct FTCSocialForceParameters
+{
+	GENERATED_BODY()
+	
+	UPROPERTY(EditAnywhere)
+	float MaxSpeed = 1.0f;
+	
+	UPROPERTY(EditAnywhere)
+	float RelaxationTime = 0.1f;
+	
+	UPROPERTY(EditAnywhere)
+	float LookaheadDistance = 1.0f;
+};
+
 class TRAFFICCHAOS_API TCSimulator
 {
 public:
@@ -130,6 +145,11 @@ public:
 	void SetSimulationParameters(const FTCSimulationParameters& Parameters)
 	{
 		SimParameters = Parameters; 
+	}
+	
+	void SetPedParameters(const FTCSocialForceParameters& Parameters)
+	{
+		PedParameters = Parameters; 
 	}
 
 private:
@@ -156,6 +176,7 @@ private:
 	TDeque<FTCCell*> Candidates;
 	
 	FTCSimulationParameters SimParameters;
+	FTCSocialForceParameters PedParameters;
 	
 	bool bSolved = false;
 	

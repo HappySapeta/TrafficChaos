@@ -51,7 +51,7 @@ protected:
 	
 private:
 	
-	void UpdateEntityPositionsAndVelocities(float DeltaSeconds);
+	void UpdateEntityPositionsAndVelocities(const float DeltaSeconds);
 	
 	void SpawnEntities();
 	
@@ -86,7 +86,10 @@ private:
 private:
 	
 	UPROPERTY(EditAnywhere)
-	FTCSimulationParameters Parameters;
+	FTCSimulationParameters SimParameters;
+	
+	UPROPERTY(EditAnywhere)
+	FTCSocialForceParameters PedParameters;
 	
 	UPROPERTY(EditAnywhere)
 	TArray<FTCSpawnConfiguration> SpawnConfigurations;
@@ -95,4 +98,5 @@ private:
 	
 	TArray<FVector2f> EntityPositions;
 	TArray<FVector2f> EntityVelocities;
+	TArray<FVector2f> EntityDesiredVelocities;
 };

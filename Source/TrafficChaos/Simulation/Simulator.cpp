@@ -1,10 +1,6 @@
 ﻿#include "Simulator.h"
 
 constexpr float MAX_COST = TNumericLimits<float>::Max();
-constexpr float PED_SPEED = 1.0f;
-constexpr float RELAXATION_TIME = 0.1f;
-constexpr float PED_DELTA = 1.0f;
-
 
 void TCSimulator::Initialize(const float Resolution, const float WorldSize)
 {
@@ -23,11 +19,7 @@ void TCSimulator::Update(const TArray<FVector2f>& EntityPositions, const TArray<
 	UpdateSpeedField();
 	UpdateCostField();
 	
-	if (!bSolved)
-	{
-		Solve({static_cast<float>(Field.GetResolution() / 2), 0});
-		bSolved = true;
-	}
+	Solve({static_cast<float>(Field.GetResolution() / 2), 0});
 	
 	UpdatePotentialGradient();
 	UpdateDesiredVelocityField();
@@ -56,8 +48,8 @@ void TCSimulator::PerformCrowdAdvection
 		const FVector2f GridLocation = Field.WorldToGrid(EntityPosition);
 		const FVector2f& DesiredVelocity = Field.GetDataAt(GridLocation)->DesiredVelocity;
 		const FVector2f& CurrentVelocity = EntityVelocities[EntityIndex];
-		const FVector2f Direction = (DesiredVelocity.GetSafeNormal() * PED_DELTA).GetSafeNormal();
-		const FVector2f Acceleration = 1/RELAXATION_TIME * (PED_SPEED * Direction - CurrentVelocity);
+		const FVector2f Direction = (DesiredVelocity.GetSafeNormal() * PedParameters.LookaheadDistance).GetSafeNormal();
+		const FVector2f Acceleration = 1/PedParameters.RelaxationTime * (PedParameters.MaxSpeed * Direction - CurrentVelocity);
 		
 		OutNewVelocities[EntityIndex] = EntityVelocities[EntityIndex] + Acceleration * DeltaSeconds;
 	}
@@ -86,14 +78,11 @@ void TCSimulator::Solve(const FVector2f& GoalCoords)
 	};
 	Field.ForEachCellPerform(InitializePotential);
 	
-	int Count = 0;
 	// 4. BFS
 	while (!Candidates.IsEmpty())
 	{
 		FTCCell* Current = Candidates.First();
 		Candidates.PopFirst();
-		
-		++Count;
 		
 		const TArray<FTCCell*> Neighbors = GetNeighbors(Current->Coords);
 		for (FTCCell* Neighbor : Neighbors)
@@ -114,12 +103,18 @@ void TCSimulator::Solve(const FVector2f& GoalCoords)
 		
 		Knowns.Add(Current);
 	}
-	
-	UE_LOG(LogTemp, Warning, TEXT("Solved. %d"), Count);
 }
 
 void TCSimulator::UpdateDensityAndVelocityField(const TArray<FVector2f>& EntityPositions, const TArray<FVector2f>& EntityVelocities)
 {
+	const auto ResetCellDensityAndVelocties = [](FTCCell* Cell, const FVector2f& Coords) -> void
+	{
+		Cell->Density = 0;
+		Cell->Velocity = {0, 0};
+	};
+	
+	Field.ForEachCellPerform(ResetCellDensityAndVelocties);
+	
 	for(int EntityIndex = 0; EntityIndex < EntityPositions.Num(); ++EntityIndex)
 	{
 		const FVector2f& EntityPosition = EntityPositions[EntityIndex];
@@ -284,6 +279,8 @@ void TCSimulator::UpdateDesiredVelocityField()
 	};
 
 	Field.ForEachCellPerform(CalculateDesiredVelocity);
+	
+	int X = 0;
 }
 
 float TCSimulator::GetFiniteDifferenceApproximation(const FVector2f& Coords)
