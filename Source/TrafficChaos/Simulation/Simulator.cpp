@@ -53,6 +53,35 @@ void TCSimulator::PerformCrowdAdvection
 		
 		OutNewVelocities[EntityIndex] = EntityVelocities[EntityIndex] + Acceleration * DeltaSeconds;
 	}
+	
+	const auto PotentialFunction = [](const float X, const float Scale) -> float
+	{
+		return (-X + 1) * Scale;
+	};
+	
+	int NumComparisons = 0;
+	for (int EntityIndex = 0; EntityIndex < NumEntities; ++EntityIndex)
+	{
+		for (int OtherEntityIndex = EntityIndex + 1; OtherEntityIndex < NumEntities; ++OtherEntityIndex)
+		{
+			
+			const FVector2f& EntityPosition = EntityPositions[EntityIndex];
+			const FVector2f& OtherEntityPosition = EntityPositions[OtherEntityIndex];
+			const float OtherEntitySpeed = EntityVelocities[OtherEntityIndex].Length();
+			if (FVector2f::Distance(EntityPosition, OtherEntityPosition) < PedParameters.AvoidanceRadius)
+			{
+				const FVector2f AvoidanceVector = EntityPosition - OtherEntityPosition;
+				const FVector2f OtherEntityDirection = EntityVelocities[OtherEntityIndex].GetSafeNormal();
+				const float StepWidthOrder = OtherEntitySpeed * DeltaSeconds;
+				const FVector2f StepWidthOrderTerm = OtherEntitySpeed * DeltaSeconds * OtherEntityDirection;
+				const float SemiMinorAxis = 0.5f * FMath::Sqrt(FMath::Square(AvoidanceVector.Length() + (AvoidanceVector - StepWidthOrderTerm).Length()) - FMath::Square(StepWidthOrder));
+				
+				const FVector2f Acceleration = -AvoidanceVector.GetSafeNormal() * PotentialFunction(SemiMinorAxis, PedParameters.AvoidanceStrength);
+				
+				OutNewVelocities[EntityIndex] += Acceleration * DeltaSeconds; 
+			}
+		}
+	}
 }
 
 void TCSimulator::Solve(const FVector2f& GoalCoords)

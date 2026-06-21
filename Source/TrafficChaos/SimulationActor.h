@@ -15,19 +15,19 @@ struct FTCSpawnConfiguration
 	UPROPERTY(EditAnywhere)
 	FVector2f Origin = {0, 0};
 	
-	UPROPERTY(EditAnywhere)
+	UPROPERTY(EditAnywhere, meta = (ClampMin = 0, UIMin = 0))
 	float SpawnRange = 1.0f;
 	
-	UPROPERTY(EditAnywhere)
+	UPROPERTY(EditAnywhere, meta = (ClampMin = 0, ClampMax = 1, UIMin = 0, UIMax = 1))
 	float SpawnAreaWidth = 1.0f;
 	
-	UPROPERTY(EditAnywhere)
+	UPROPERTY(EditAnywhere, meta = (ClampMin = 0, ClampMax = 6.28, UIMin = 0, UIMax = 6.28))
 	float Rotation = 0.0f;
 	
 	UPROPERTY(EditAnywhere)
 	FVector2f Velocity = {0, 0};
 	
-	UPROPERTY(EditAnywhere)
+	UPROPERTY(EditAnywhere, meta = (ClampMin = 0, ClampMax = 100, UIMin = 0, UIMax = 100))
 	int Amount = 1;
 };
 
@@ -65,34 +65,31 @@ private:
 	UPROPERTY(EditAnywhere, Category = "Simulation Settings", meta = (ClampMin = 1, UIMin = 1))
 	float WorldSpan = 1;
 	
-	UPROPERTY(EditAnywhere, Category = "Simulation Settings", meta = (ClampMin = 0, UIMin = 0))
-	int EntityCount = 1;
-	
-	UPROPERTY(EditAnywhere, Category = "Debug")
+	UPROPERTY(EditAnywhere, Category = "Debug Settings")
 	bool bDrawDensityField = false;
 	
-	UPROPERTY(EditAnywhere, Category = "Debug")
+	UPROPERTY(EditAnywhere, Category = "Debug Settings")
 	bool bDrawPotentialField = false;
 	
-	UPROPERTY(EditAnywhere, Category = "Debug")
+	UPROPERTY(EditAnywhere, Category = "Debug Settings")
 	bool bDrawCellVelocityField = false;
 	
-	UPROPERTY(EditAnywhere, Category = "Debug")
+	UPROPERTY(EditAnywhere, Category = "Debug Settings")
 	bool bDrawDesiredVelocityField = false;
 	
-	UPROPERTY(EditAnywhere, Category = "Debug")
+	UPROPERTY(EditAnywhere, Category = "Debug Settings")
 	bool bDrawEntities = true;
 	
-private:
-	
-	UPROPERTY(EditAnywhere)
+	UPROPERTY(EditAnywhere, Category = "Simulation Settings")
 	FTCSimulationParameters SimParameters;
 	
-	UPROPERTY(EditAnywhere)
+	UPROPERTY(EditAnywhere, Category = "Simulation Settings")
 	FTCSocialForceParameters PedParameters;
 	
-	UPROPERTY(EditAnywhere)
+	UPROPERTY(EditAnywhere, Category = "Simulation Settings")
 	TArray<FTCSpawnConfiguration> SpawnConfigurations;
+	
+private:
 	
 	TCSimulator Simulator;
 	
