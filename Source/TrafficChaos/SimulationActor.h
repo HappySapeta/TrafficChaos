@@ -51,8 +51,6 @@ protected:
 	
 private:
 	
-	void UpdateEntityPositionsAndVelocities(const float DeltaSeconds);
-	
 	void SpawnEntities();
 	
 	void DrawDebugGraphics(const float DeltaSeconds);
@@ -95,5 +93,4 @@ private:
 	
 	TArray<FVector2f> EntityPositions;
 	TArray<FVector2f> EntityVelocities;
-	TArray<FVector2f> EntityDesiredVelocities;
 };

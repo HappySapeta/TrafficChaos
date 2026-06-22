@@ -27,60 +27,41 @@ void TCSimulator::Update(const TArray<FVector2f>& EntityPositions, const TArray<
 
 void TCSimulator::PerformCrowdAdvection
 (
-	const TArray<FVector2f>& EntityPositions, 
-	const TArray<FVector2f>& EntityVelocities,
-	TArray<FVector2f>& OutNewVelocities,
+	TArray<FVector2f>& EntityPositions, 
+	TArray<FVector2f>& EntityVelocities,
 	const float DeltaSeconds
 )
 {
 	const int NumEntities = EntityPositions.Num();
 	check(NumEntities == EntityVelocities.Num());
-	OutNewVelocities.Reserve(NumEntities);
 	
 	for (int EntityIndex = 0; EntityIndex < NumEntities; ++EntityIndex)
 	{
-		const FVector2f& EntityPosition = EntityPositions[EntityIndex];
-		if (!Field.IsValidWorldPosition(EntityPosition))
-		{
-			continue;
-		}
+		FVector2f Force = FVector2f::ZeroVector;
 		
-		const FVector2f GridLocation = Field.WorldToGrid(EntityPosition);
-		const FVector2f& DesiredVelocity = Field.GetDataAt(GridLocation)->DesiredVelocity;
 		const FVector2f& CurrentVelocity = EntityVelocities[EntityIndex];
-		const FVector2f Direction = (DesiredVelocity.GetSafeNormal() * PedParameters.LookaheadDistance).GetSafeNormal();
-		const FVector2f Acceleration = 1/PedParameters.RelaxationTime * (PedParameters.MaxSpeed * Direction - CurrentVelocity);
+		const FVector2f& CurrentPosition = EntityPositions[EntityIndex];
 		
-		OutNewVelocities[EntityIndex] = EntityVelocities[EntityIndex] + Acceleration * DeltaSeconds;
-	}
-	
-	const auto PotentialFunction = [](const float X, const float Scale) -> float
-	{
-		return (-X + 1) * Scale;
-	};
-	
-	int NumComparisons = 0;
-	for (int EntityIndex = 0; EntityIndex < NumEntities; ++EntityIndex)
-	{
-		for (int OtherEntityIndex = EntityIndex + 1; OtherEntityIndex < NumEntities; ++OtherEntityIndex)
+		const FVector2f GridLocation = Field.WorldToGrid(CurrentPosition);
+		const FVector2f& DesiredVelocity = Field.GetDataAt(GridLocation)->DesiredVelocity;
+		const FVector2f DesiredDirection = DesiredVelocity.GetSafeNormal();
+		
+		Force += FTCSocialForces::GetDrivingForce(CurrentVelocity, DesiredDirection, PedParameters);
+		 
+		for (int OtherEntityIndex = 0; OtherEntityIndex < NumEntities; ++OtherEntityIndex)
 		{
-			
-			const FVector2f& EntityPosition = EntityPositions[EntityIndex];
-			const FVector2f& OtherEntityPosition = EntityPositions[OtherEntityIndex];
-			const float OtherEntitySpeed = EntityVelocities[OtherEntityIndex].Length();
-			if (FVector2f::Distance(EntityPosition, OtherEntityPosition) < PedParameters.AvoidanceRadius)
+			if (EntityIndex == OtherEntityIndex)
 			{
-				const FVector2f AvoidanceVector = EntityPosition - OtherEntityPosition;
-				const FVector2f OtherEntityDirection = EntityVelocities[OtherEntityIndex].GetSafeNormal();
-				const float StepWidthOrder = OtherEntitySpeed * DeltaSeconds;
-				const FVector2f StepWidthOrderTerm = OtherEntitySpeed * DeltaSeconds * OtherEntityDirection;
-				const float SemiMinorAxis = 0.5f * FMath::Sqrt(FMath::Square(AvoidanceVector.Length() + (AvoidanceVector - StepWidthOrderTerm).Length()) - FMath::Square(StepWidthOrder));
-				
-				const FVector2f Acceleration = -AvoidanceVector.GetSafeNormal() * PotentialFunction(SemiMinorAxis, PedParameters.AvoidanceStrength);
-				
-				OutNewVelocities[EntityIndex] += Acceleration * DeltaSeconds; 
+				continue;
 			}
+			
+			const FVector2f& OtherPosition = EntityPositions[OtherEntityIndex];
+			const FVector2f& OtherVelocity = EntityVelocities[OtherEntityIndex];
+			Force += FTCSocialForces::GetAvoidanceForce(CurrentPosition, OtherPosition, OtherVelocity, DeltaSeconds, PedParameters);
 		}
+		
+		EntityVelocities[EntityIndex] = EntityVelocities[EntityIndex] + Force * DeltaSeconds;
+		EntityPositions[EntityIndex] += EntityVelocities[EntityIndex] * DeltaSeconds;
 	}
 }
 
@@ -308,8 +289,6 @@ void TCSimulator::UpdateDesiredVelocityField()
 	};
 
 	Field.ForEachCellPerform(CalculateDesiredVelocity);
-	
-	int X = 0;
 }
 
 float TCSimulator::GetFiniteDifferenceApproximation(const FVector2f& Coords)

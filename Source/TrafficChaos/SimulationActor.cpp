@@ -1,6 +1,6 @@
 ﻿// Fill out your copyright notice in the Description page of Project Settings.
 
-#include "SimulationActor.h"
+ #include "SimulationActor.h"
 
 #include "Kismet/KismetMathLibrary.h"
 constexpr float ENTITY_MOVEMENT_RADIUS = 5.0f;
@@ -38,16 +38,6 @@ void ASimulationActor::BeginPlay()
 	SpawnEntities();
 }
 
-void ASimulationActor::UpdateEntityPositionsAndVelocities(const float DeltaSeconds)
-{
-	for (int EntityIndex = 0; EntityIndex < EntityPositions.Num(); ++EntityIndex)
-	{
-		const FVector2f& DesiredVelocity = EntityDesiredVelocities[EntityIndex];
-		EntityPositions[EntityIndex] += DesiredVelocity * DeltaSeconds;
-		EntityVelocities[EntityIndex] = DesiredVelocity;
-	}
-}
-
 void ASimulationActor::SpawnEntities()
 {
 	for (const FTCSpawnConfiguration& Configuration : SpawnConfigurations)
@@ -61,13 +51,17 @@ void ASimulationActor::SpawnEntities()
 		while (NumSpawned < Configuration.Amount)
 		{
 			const float S = UKismetMathLibrary::RandomFloatInRange(0, SpawnRange);
+			
+			UE_LOG(LogTemp, Warning, TEXT("%f"), S);
+			
 			const float T = UKismetMathLibrary::RandomFloatInRange(0, 2 * PI);
-			const float X = FMath::Clamp(S * (A * FMath::Cos(T) * FMath::Cos(R) - FMath::Sin(T) * FMath::Sin(R)) + H, 0, SpawnRange);
-			const float Y = FMath::Clamp(S * (A * FMath::Cos(T) * FMath::Sin(R) + FMath::Sin(T) * FMath::Cos(R)) + K, 0, SpawnRange);
+			const float X = FMath::Clamp(S * (A * FMath::Cos(T) * FMath::Cos(R) - FMath::Sin(T) * FMath::Sin(R)) + H, 0, WorldSpan);
+			const float Y = FMath::Clamp(S * (A * FMath::Cos(T) * FMath::Sin(R) + FMath::Sin(T) * FMath::Cos(R)) + K, 0, WorldSpan);
+			
+			//UE_LOG(LogTemp, Warning, TEXT("%d %s"), NumSpawned, *(FVector2f{X,Y}.ToString()));
 			
 			EntityPositions.Push({X, Y});
 			EntityVelocities.Push({Configuration.Velocity});
-			EntityDesiredVelocities.Push({0, 0});
 			
 			++NumSpawned;
 		}
@@ -78,8 +72,7 @@ void ASimulationActor::Tick(const float DeltaSeconds)
 {
 	Super::Tick(DeltaSeconds);
 	Simulator.Update(EntityPositions, EntityVelocities, DeltaSeconds);
-	Simulator.PerformCrowdAdvection(EntityPositions, EntityVelocities, EntityDesiredVelocities, DeltaSeconds);
-	UpdateEntityPositionsAndVelocities(DeltaSeconds);
+	Simulator.PerformCrowdAdvection(EntityPositions, EntityVelocities, DeltaSeconds);
 	DrawDebugGraphics(DeltaSeconds);
 }
 
@@ -93,7 +86,7 @@ void ASimulationActor::DrawDebugGraphics(const float DeltaSeconds)
 	{
 		for (const FVector2f& Position : EntityPositions)
 		{
-			DrawDebugSphere(World, {Position.X, Position.Y, 0.0f}, 10.0f, 10, FColor::Green);
+			DrawDebugSphere(World, {Position.X, Position.Y, 0.0f}, 25.0f, 10, FColor::Green);
 		}
 	}
 	

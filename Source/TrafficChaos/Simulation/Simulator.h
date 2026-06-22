@@ -3,6 +3,7 @@
 #include "CoreMinimal.h"
 #include "SpatialData.h"
 #include "Containers/Deque.h"
+#include "SocialForceModel.h"
 #include "Simulator.generated.h"
 
 const FVector2f D_NORTH			{ 0, -1};
@@ -109,27 +110,6 @@ struct FTCSimulationParameters
 	float TimeCostConstant = 1;
 };
 
-USTRUCT()
-struct FTCSocialForceParameters
-{
-	GENERATED_BODY()
-	
-	UPROPERTY(EditAnywhere)
-	float MaxSpeed = 1.0f;
-	 
-	UPROPERTY(EditAnywhere)
-	float RelaxationTime = 0.1f;
-	
-	UPROPERTY(EditAnywhere)
-	float LookaheadDistance = 1.0f;
-	
-	UPROPERTY(EditAnywhere)
-	float AvoidanceRadius = 1.0f;
-	
-	UPROPERTY(EditAnywhere)
-	float AvoidanceStrength = 1.0f;
-};
-
 class TRAFFICCHAOS_API TCSimulator
 {
 public:
@@ -140,8 +120,7 @@ public:
 	
 	void Initialize(const float Resolution, const float WorldSize);
 	void Update(const TArray<FVector2f>& EntityPositions, const TArray<FVector2f>& EntityVelocities, const float DeltaSeconds);
-	void PerformCrowdAdvection(const TArray<FVector2f>& EntityPositions, const TArray<FVector2f>& EntityVelocities, TArray<FVector2f>& OutNewVelocities, float
-							   DeltaSeconds);
+	void PerformCrowdAdvection(TArray<FVector2f>& EntityPositions, TArray<FVector2f>& EntityVelocities, float DeltaSeconds);
 	
 	const FRpSpatialData<FTCCell>& GetFieldData() const
 	{
@@ -155,7 +134,7 @@ public:
 	
 	void SetPedParameters(const FTCSocialForceParameters& Parameters)
 	{
-		PedParameters = Parameters; 
+		PedParameters = Parameters;
 	}
 
 private:
