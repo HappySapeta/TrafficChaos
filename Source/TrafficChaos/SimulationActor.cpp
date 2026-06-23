@@ -32,7 +32,7 @@ ASimulationActor::ASimulationActor()
 void ASimulationActor::BeginPlay()
 {
 	Super::BeginPlay();
-	Simulator.Initialize(GridResolution, WorldSpan);
+	Simulator.Initialize(GridResolution, WorldSpan, SpawnConfigurations.Num());
 	Simulator.SetSimulationParameters(SimParameters);
 	Simulator.SetPedParameters(PedParameters);
 	SpawnEntities();
@@ -40,6 +40,7 @@ void ASimulationActor::BeginPlay()
 
 void ASimulationActor::SpawnEntities()
 {
+	int GroupID = 0;
 	for (const FTCSpawnConfiguration& Configuration : SpawnConfigurations)
 	{
 		const float& SpawnRange = Configuration.SpawnRange;
@@ -51,28 +52,27 @@ void ASimulationActor::SpawnEntities()
 		while (NumSpawned < Configuration.Amount)
 		{
 			const float S = UKismetMathLibrary::RandomFloatInRange(0, SpawnRange);
-			
-			UE_LOG(LogTemp, Warning, TEXT("%f"), S);
-			
 			const float T = UKismetMathLibrary::RandomFloatInRange(0, 2 * PI);
 			const float X = FMath::Clamp(S * (A * FMath::Cos(T) * FMath::Cos(R) - FMath::Sin(T) * FMath::Sin(R)) + H, 0, WorldSpan);
 			const float Y = FMath::Clamp(S * (A * FMath::Cos(T) * FMath::Sin(R) + FMath::Sin(T) * FMath::Cos(R)) + K, 0, WorldSpan);
 			
-			//UE_LOG(LogTemp, Warning, TEXT("%d %s"), NumSpawned, *(FVector2f{X,Y}.ToString()));
-			
-			EntityPositions.Push({X, Y});
-			EntityVelocities.Push({Configuration.Velocity});
-			
+			Entities.Push({FVector2f{X, Y}, FVector2f{FVector2f::ZeroVector}, GroupID});
 			++NumSpawned;
 		}
+		EntityColors.Push(Configuration.Color);
+		
+		const float GoalX = (GridResolution - 1) * FMath::Clamp(Configuration.Goal.X, 0, 1);
+		const float GoalY = (GridResolution - 1) * FMath::Clamp(Configuration.Goal.Y, 0, 1);
+		Simulator.CreateGoal(GroupID, {GoalX, GoalY});
+		++GroupID;
 	}
 }
 
 void ASimulationActor::Tick(const float DeltaSeconds)
 {
 	Super::Tick(DeltaSeconds);
-	Simulator.Update(EntityPositions, EntityVelocities, DeltaSeconds);
-	Simulator.PerformCrowdAdvection(EntityPositions, EntityVelocities, DeltaSeconds);
+	Simulator.Update(Entities, DeltaSeconds);
+	Simulator.PerformCrowdAdvection(Entities, DeltaSeconds);
 	DrawDebugGraphics(DeltaSeconds);
 }
 
@@ -84,9 +84,9 @@ void ASimulationActor::DrawDebugGraphics(const float DeltaSeconds)
 	// Draw entities.
 	if (bDrawEntities)
 	{
-		for (const FVector2f& Position : EntityPositions)
+		for (const FTCEntity& Entity : Entities)
 		{
-			DrawDebugSphere(World, {Position.X, Position.Y, 0.0f}, 25.0f, 10, FColor::Green);
+			DrawDebugSphere(World, {Entity.Position.X, Entity.Position.Y, 0.0f}, 25.0f, 10,  EntityColors[Entity.GroupID]);
 		}
 	}
 	
@@ -120,7 +120,7 @@ void ASimulationActor::DrawDebugGraphics(const float DeltaSeconds)
 			const FVector BoxMax = {WorldCoords.X + DebugBoxExtent, WorldCoords.Y + DebugBoxExtent, 100};
 			DrawDebugSolidBox(World, FBox(BoxMin, BoxMax), FColor(255, 255, 255, 10));
 			
-			const FString String = FString::Printf(TEXT("%.2f"), Cell->Potential);
+			const FString String = FString::Printf(TEXT("%.2f"), Cell->Potential[DebugGroupID]);
 			const FVector StringLocation = {WorldCoords.X + DebugBoxExtent / 2, WorldCoords.Y + DebugBoxExtent / 2, 0.0f}; 
 			DrawDebugString(World, StringLocation , String, this, FColor::Red, DeltaSeconds);
 		};
@@ -154,14 +154,14 @@ void ASimulationActor::DrawDebugGraphics(const float DeltaSeconds)
 	{
 		const auto DrawVelocties = [this, World, Field](const FTCCell* Cell, const FVector2f& Coords) -> void
 		{
-			if (Cell->DesiredVelocity.IsNearlyZero())
+			if (Cell->DesiredVelocity[DebugGroupID].IsNearlyZero())
 			{
 				return;
 			}
 			
 			const float CellSize = Field.GetCellSize();
 			const FVector2f WorldLocation = Field.GridToWorld(Coords);
-			const FVector2f Direction = Cell->DesiredVelocity.IsNearlyZero() ? FVector2f{1.0f, 0.0f} : Cell->DesiredVelocity.GetSafeNormal();
+			const FVector2f Direction = Cell->DesiredVelocity[DebugGroupID].IsNearlyZero() ? FVector2f{1.0f, 0.0f} : Cell->DesiredVelocity[DebugGroupID].GetSafeNormal();
 			const FVector LineStart = {WorldLocation.X, WorldLocation.Y, 0};
 			const FVector LineEnd = {WorldLocation.X + Direction.X * CellSize / 2, WorldLocation.Y + Direction.Y * CellSize / 2, 0};
 			DrawDebugLine(World, LineStart, LineStart, FColor::Cyan, false, -1, 0, 7.0f);

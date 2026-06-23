@@ -2,71 +2,82 @@
 
 constexpr float MAX_COST = TNumericLimits<float>::Max();
 
-void TCSimulator::Initialize(const float Resolution, const float WorldSize)
+void TCSimulator::Initialize(const float Resolution, const float WorldSize, const int NewNumGroups)
 {
 	Field.Initialize(Resolution, WorldSize, {});
-	const auto InitializeCells = [](FTCCell* Cell, const FVector2f& Coords)
+	const auto InitializeCells = [NewNumGroups](FTCCell* Cell, const FVector2f& Coords)
 	{
 		Cell->Coords = Coords;
+		Cell->DesiredVelocity.Init({}, NewNumGroups);
+		Cell->Potential.Init({}, NewNumGroups);
+		Cell->PotentialGradient.Init({}, NewNumGroups);
 	};
 	
 	Field.ForEachCellPerform(InitializeCells);
+	
+	NumGroups = NewNumGroups;
 }
 
-void TCSimulator::Update(const TArray<FVector2f>& EntityPositions, const TArray<FVector2f>& EntityVelocities, const float DeltaSeconds)
+void TCSimulator::Update(const TArray<FTCEntity>& Entities, const float DeltaSeconds)
 {
-	UpdateDensityAndVelocityField(EntityPositions, EntityVelocities);
+	UpdateDensityAndVelocityField(Entities);
 	UpdateSpeedField();
-	UpdateCostField();
 	
-	Solve({static_cast<float>(Field.GetResolution() / 2), 0});
-	
-	UpdatePotentialGradient();
-	UpdateDesiredVelocityField();
+	for (int GroupID = 0; GroupID < NumGroups; ++GroupID)
+	{
+		UpdateCostField();
+		Solve(GroupID);
+		UpdatePotentialGradient(GroupID);
+		UpdateDesiredVelocityField(GroupID);
+	}
 }
 
 void TCSimulator::PerformCrowdAdvection
 (
-	TArray<FVector2f>& EntityPositions, 
-	TArray<FVector2f>& EntityVelocities,
+	TArray<FTCEntity>& Entities,
 	const float DeltaSeconds
 )
 {
-	const int NumEntities = EntityPositions.Num();
-	check(NumEntities == EntityVelocities.Num());
-	
-	for (int EntityIndex = 0; EntityIndex < NumEntities; ++EntityIndex)
+	for (int EntityIndex = 0; EntityIndex < Entities.Num(); ++EntityIndex)
 	{
 		FVector2f Force = FVector2f::ZeroVector;
 		
-		const FVector2f& CurrentVelocity = EntityVelocities[EntityIndex];
-		const FVector2f& CurrentPosition = EntityPositions[EntityIndex];
+		const FVector2f& CurrentVelocity = Entities[EntityIndex].Velocity;
+		const FVector2f& CurrentPosition = Entities[EntityIndex].Position;
 		
 		const FVector2f GridLocation = Field.WorldToGrid(CurrentPosition);
-		const FVector2f& DesiredVelocity = Field.GetDataAt(GridLocation)->DesiredVelocity;
+		const FVector2f& DesiredVelocity = Field.GetDataAt(GridLocation)->DesiredVelocity[Entities[EntityIndex].GroupID];
 		const FVector2f DesiredDirection = DesiredVelocity.GetSafeNormal();
 		
 		Force += FTCSocialForces::GetDrivingForce(CurrentVelocity, DesiredDirection, PedParameters);
 		 
-		for (int OtherEntityIndex = 0; OtherEntityIndex < NumEntities; ++OtherEntityIndex)
+		for (int OtherEntityIndex = 0; OtherEntityIndex < Entities.Num(); ++OtherEntityIndex)
 		{
 			if (EntityIndex == OtherEntityIndex)
 			{
 				continue;
 			}
 			
-			const FVector2f& OtherPosition = EntityPositions[OtherEntityIndex];
-			const FVector2f& OtherVelocity = EntityVelocities[OtherEntityIndex];
+			const FVector2f& OtherPosition = Entities[OtherEntityIndex].Position;
+			const FVector2f& OtherVelocity = Entities[OtherEntityIndex].Velocity;
 			Force += FTCSocialForces::GetAvoidanceForce(CurrentPosition, OtherPosition, OtherVelocity, DeltaSeconds, PedParameters);
 		}
 		
-		EntityVelocities[EntityIndex] = EntityVelocities[EntityIndex] + Force * DeltaSeconds;
-		EntityPositions[EntityIndex] += EntityVelocities[EntityIndex] * DeltaSeconds;
-	}
+		Entities[EntityIndex].Velocity = Entities[EntityIndex].Velocity + Force * DeltaSeconds;
+		Entities[EntityIndex].Position += Entities[EntityIndex].Velocity * DeltaSeconds;
+	}	
 }
 
-void TCSimulator::Solve(const FVector2f& GoalCoords)
+void TCSimulator::CreateGoal(const int GroupID, const FVector2f& Goal)
 {
+	Goals.Add({GroupID, Goal});
+}
+
+void TCSimulator::Solve(const int GroupID)
+{
+	check(Goals.Contains(GroupID));
+	const FVector2f GoalCoords = Goals[GroupID];
+	
 	checkf(Field.IsValidGridCoordinate(GoalCoords), TEXT("Invalid coordinates for goal."));
 	
 	// 1. Clear all lists. 
@@ -75,15 +86,15 @@ void TCSimulator::Solve(const FVector2f& GoalCoords)
 	
 	// 1. Get the goal cell.
 	FTCCell* GoalCell = Field.GetDataAt(GoalCoords);
-	GoalCell->Potential = 0;
+	GoalCell->Potential[GroupID] = 0;
 	Candidates.PushFirst(GoalCell);
 	
 	// 2. Initialize potentials
-	const auto InitializePotential = [GoalCoords](FTCCell* Cell, const FVector2f& Coords)
+	const auto InitializePotential = [GoalCoords, GroupID](FTCCell* Cell, const FVector2f& Coords)
 	{
 		if (Coords != GoalCoords)
 		{
-			Cell->Potential = MAX_COST;
+			Cell->Potential[GroupID] = MAX_COST;
 		}
 	};
 	Field.ForEachCellPerform(InitializePotential);
@@ -102,8 +113,8 @@ void TCSimulator::Solve(const FVector2f& GoalCoords)
 				continue;
 			}
 			
-			float& CurrentPotential = Neighbor->Potential;
-			const float NewPotential = GetFiniteDifferenceApproximation(Neighbor->Coords);
+			float& CurrentPotential = Neighbor->Potential[GroupID];
+			const float NewPotential = GetFiniteDifferenceApproximation(Neighbor->Coords, GroupID);
 			if(NewPotential < CurrentPotential)
 			{
 				CurrentPotential = NewPotential;
@@ -115,7 +126,7 @@ void TCSimulator::Solve(const FVector2f& GoalCoords)
 	}
 }
 
-void TCSimulator::UpdateDensityAndVelocityField(const TArray<FVector2f>& EntityPositions, const TArray<FVector2f>& EntityVelocities)
+void TCSimulator::UpdateDensityAndVelocityField(const TArray<FTCEntity>& Entities)
 {
 	const auto ResetCellDensityAndVelocties = [](FTCCell* Cell, const FVector2f& Coords) -> void
 	{
@@ -125,10 +136,10 @@ void TCSimulator::UpdateDensityAndVelocityField(const TArray<FVector2f>& EntityP
 	
 	Field.ForEachCellPerform(ResetCellDensityAndVelocties);
 	
-	for(int EntityIndex = 0; EntityIndex < EntityPositions.Num(); ++EntityIndex)
+	for(const FTCEntity& Entity : Entities)
 	{
-		const FVector2f& EntityPosition = EntityPositions[EntityIndex];
-		const FVector2f& EntityVelocity = EntityVelocities[EntityIndex];
+		const FVector2f& EntityPosition = Entity.Position;
+		const FVector2f& EntityVelocity = Entity.Velocity;
 		if(!Field.IsValidWorldPosition(EntityPosition))
 		{
 			continue;
@@ -247,16 +258,16 @@ void TCSimulator::UpdateCostField()
 	Field.ForEachCellPerform(CalculateCost);
 }
 
-void TCSimulator::UpdatePotentialGradient()
+void TCSimulator::UpdatePotentialGradient(const int GroupID)
 {
-	const auto Operation = [this](FTCCell* Cell, const FVector2f& Coords) -> void
+	const auto Operation = [this, GroupID](FTCCell* Cell, const FVector2f& Coords) -> void
 	{
 		for(const EDirectionIndex DirectionIndex : CARDINAL_DIRECTIONS)
 		{
 			if(const FTCCell* Neighbor = Field.GetDataAt(Coords, DIRECTION_OFFSETS[DirectionIndex]))
 			{
-				const float Gradient = Neighbor->Potential - Cell->Potential;
-				Cell->PotentialGradient[DirectionIndex] = Gradient;
+				const float Gradient = Neighbor->Potential[GroupID] - Cell->Potential[GroupID];
+				Cell->PotentialGradient[GroupID][DirectionIndex] = Gradient;
 			}
 		}
 	};
@@ -264,36 +275,36 @@ void TCSimulator::UpdatePotentialGradient()
 	Field.ForEachCellPerform(Operation);
 }
 
-void TCSimulator::UpdateDesiredVelocityField()
+void TCSimulator::UpdateDesiredVelocityField(const int GroupID)
 {
-	const auto CalculateDesiredVelocity = [this](FTCCell* Cell, const FVector2f& Coords) -> void
+	const auto CalculateDesiredVelocity = [this, GroupID](FTCCell* Cell, const FVector2f& Coords) -> void
 	{
 		FVector4 NormPotential = FVector4
 		{
-			Cell->PotentialGradient[NORTH],
-			Cell->PotentialGradient[WEST],
-			Cell->PotentialGradient[SOUTH],
-			Cell->PotentialGradient[EAST]
+			Cell->PotentialGradient[GroupID][NORTH],
+			Cell->PotentialGradient[GroupID][WEST],
+			Cell->PotentialGradient[GroupID][SOUTH],
+			Cell->PotentialGradient[GroupID][EAST]
 		}.GetSafeNormal();
 		
-		Cell->PotentialGradient[NORTH] = NormPotential.X;
-		Cell->PotentialGradient[WEST] = NormPotential.Y;
-		Cell->PotentialGradient[SOUTH] = NormPotential.Z;
-		Cell->PotentialGradient[EAST] = NormPotential.W;
+		Cell->PotentialGradient[GroupID][NORTH] = NormPotential.X;
+		Cell->PotentialGradient[GroupID][WEST] = NormPotential.Y;
+		Cell->PotentialGradient[GroupID][SOUTH] = NormPotential.Z;
+		Cell->PotentialGradient[GroupID][EAST] = NormPotential.W;
 
-		Cell->DesiredVelocity = {0, 0};
-		Cell->DesiredVelocity += -Cell->SpeedField[NORTH] * NormPotential.X * DIRECTION_OFFSETS[NORTH];
-		Cell->DesiredVelocity += -Cell->SpeedField[WEST] * NormPotential.Y * DIRECTION_OFFSETS[WEST];
-		Cell->DesiredVelocity += -Cell->SpeedField[SOUTH] * NormPotential.Z * DIRECTION_OFFSETS[SOUTH];
-		Cell->DesiredVelocity += -Cell->SpeedField[EAST] * NormPotential.W * DIRECTION_OFFSETS[EAST];	
+		Cell->DesiredVelocity[GroupID] = {0, 0};
+		Cell->DesiredVelocity[GroupID] += -Cell->SpeedField[NORTH] * NormPotential.X * DIRECTION_OFFSETS[NORTH];
+		Cell->DesiredVelocity[GroupID] += -Cell->SpeedField[WEST] * NormPotential.Y * DIRECTION_OFFSETS[WEST];
+		Cell->DesiredVelocity[GroupID] += -Cell->SpeedField[SOUTH] * NormPotential.Z * DIRECTION_OFFSETS[SOUTH];
+		Cell->DesiredVelocity[GroupID] += -Cell->SpeedField[EAST] * NormPotential.W * DIRECTION_OFFSETS[EAST];	
 	};
 
 	Field.ForEachCellPerform(CalculateDesiredVelocity);
 }
 
-float TCSimulator::GetFiniteDifferenceApproximation(const FVector2f& Coords)
+float TCSimulator::GetFiniteDifferenceApproximation(const FVector2f& Coords, const int GroupID)
 {
-	auto GetCheapestAdjCellOnAxis = [this](const FVector2f& Coordinates, const EDirectionIndex FirstDirection, const EDirectionIndex SecondDirection) -> FTCCheapestNeighbor
+	auto GetCheapestAdjCellOnAxis = [this, GroupID](const FVector2f& Coordinates, const EDirectionIndex FirstDirection, const EDirectionIndex SecondDirection) -> FTCCheapestNeighbor
 	{
 		FTCCell* CurrentCell = Field.GetDataAt(Coordinates);
 		FTCCell* FirstNeighbor = Field.GetDataAt(Coordinates, DIRECTION_OFFSETS[FirstDirection]);
@@ -301,19 +312,19 @@ float TCSimulator::GetFiniteDifferenceApproximation(const FVector2f& Coords)
 
 		if(FirstNeighbor && !SecondNeighbor)
 		{
-			return {FirstNeighbor->Potential, CurrentCell->CostField[FirstDirection]};
+			return {FirstNeighbor->Potential[GroupID], CurrentCell->CostField[FirstDirection]};
 		}
 		else if(!FirstNeighbor && SecondNeighbor)
 		{
-			return {SecondNeighbor->Potential, CurrentCell->CostField[SecondDirection]};
+			return {SecondNeighbor->Potential[GroupID], CurrentCell->CostField[SecondDirection]};
 		}
 		else if(!FirstNeighbor && !SecondNeighbor)
 		{
 			return {MAX_COST, MAX_COST};
 		}
 
-		const FTCCheapestNeighbor ResultFirst = {FirstNeighbor->Potential, CurrentCell->CostField[FirstDirection]};
-		const FTCCheapestNeighbor ResultSecond = {SecondNeighbor->Potential, CurrentCell->CostField[SecondDirection]};
+		const FTCCheapestNeighbor ResultFirst = {FirstNeighbor->Potential[GroupID], CurrentCell->CostField[FirstDirection]};
+		const FTCCheapestNeighbor ResultSecond = {SecondNeighbor->Potential[GroupID], CurrentCell->CostField[SecondDirection]};
 		
 		return ResultFirst.Sum() < ResultSecond.Sum() ? ResultFirst : ResultSecond;
 	};

@@ -25,7 +25,10 @@ struct FTCSpawnConfiguration
 	float Rotation = 0.0f;
 	
 	UPROPERTY(EditAnywhere)
-	FVector2f Velocity = {0, 0};
+	FVector2f Goal = {0, 0};
+	
+	UPROPERTY(EditAnywhere)
+	FColor Color;
 	
 	UPROPERTY(EditAnywhere, meta = (ClampMin = 0, ClampMax = 100, UIMin = 0, UIMax = 100))
 	int Amount = 1;
@@ -78,6 +81,9 @@ private:
 	UPROPERTY(EditAnywhere, Category = "Debug Settings")
 	bool bDrawEntities = true;
 	
+	UPROPERTY(EditAnywhere, Category = "Debug Settings", meta = (ClampMin = 0, UIMin = 0))
+	int DebugGroupID = 0;
+	
 	UPROPERTY(EditAnywhere, Category = "Simulation Settings")
 	FTCSimulationParameters SimParameters;
 	
@@ -90,7 +96,6 @@ private:
 private:
 	
 	TCSimulator Simulator;
-	
-	TArray<FVector2f> EntityPositions;
-	TArray<FVector2f> EntityVelocities;
+	TArray<FTCEntity> Entities;
+	TArray<FColor> EntityColors;
 };
