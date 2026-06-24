@@ -76,7 +76,7 @@ void TCSimulator::CreateGoal(const int GroupID, const FVector2f& Goal)
 void TCSimulator::Solve(const int GroupID)
 {
 	check(Goals.Contains(GroupID));
-	const FVector2f GoalCoords = Goals[GroupID];
+	const FVector2f GoalCoords = Field.WorldToGrid(Goals[GroupID]);
 	
 	checkf(Field.IsValidGridCoordinate(GoalCoords), TEXT("Invalid coordinates for goal."));
 	

@@ -11,11 +11,13 @@ void ASimulationActor::PostEditChangeProperty(struct FPropertyChangedEvent& Prop
 	FName PropertyName = (PropertyChangedEvent.MemberProperty != nullptr) ? PropertyChangedEvent.MemberProperty->GetFName() : NAME_None;
 	if (PropertyName == GET_MEMBER_NAME_CHECKED(ASimulationActor, SimParameters))
 	{
+		GEngine->AddOnScreenDebugMessage(-1, 2, FColor::White, FString::Printf(TEXT("Sim Parameters changed : %s"), *PropertyChangedEvent.GetPropertyName().ToString()));
 		Simulator.SetSimulationParameters(SimParameters);
 	}
 	
 	if (PropertyName == GET_MEMBER_NAME_CHECKED(ASimulationActor, PedParameters))
 	{
+		GEngine->AddOnScreenDebugMessage(-1, 2, FColor::White, FString::Printf(TEXT("Ped Parameters changed : %s"), *PropertyChangedEvent.GetPropertyName().ToString()));
 		Simulator.SetPedParameters(PedParameters);
 	}
 	
@@ -53,16 +55,22 @@ void ASimulationActor::SpawnEntities()
 		{
 			const float S = UKismetMathLibrary::RandomFloatInRange(0, SpawnRange);
 			const float T = UKismetMathLibrary::RandomFloatInRange(0, 2 * PI);
-			const float X = FMath::Clamp(S * (A * FMath::Cos(T) * FMath::Cos(R) - FMath::Sin(T) * FMath::Sin(R)) + H, 0, WorldSpan);
-			const float Y = FMath::Clamp(S * (A * FMath::Cos(T) * FMath::Sin(R) + FMath::Sin(T) * FMath::Cos(R)) + K, 0, WorldSpan);
+			const float X = S * (A * FMath::Cos(T) * FMath::Cos(R) - FMath::Sin(T) * FMath::Sin(R)) + H;
+			const float Y = S * (A * FMath::Cos(T) * FMath::Sin(R) + FMath::Sin(T) * FMath::Cos(R)) + K;
+			
+			const FVector2f NewPosition = {X, Y};
+			if (!Simulator.GetFieldData().IsValidWorldPosition(NewPosition))
+			{
+				continue;
+			}
 			
 			Entities.Push({FVector2f{X, Y}, FVector2f{FVector2f::ZeroVector}, GroupID});
 			++NumSpawned;
 		}
 		EntityColors.Push(Configuration.Color);
 		
-		const float GoalX = (GridResolution - 1) * FMath::Clamp(Configuration.Goal.X, 0, 1);
-		const float GoalY = (GridResolution - 1) * FMath::Clamp(Configuration.Goal.Y, 0, 1);
+		const float GoalX = FMath::Clamp(Configuration.Goal.X, 0, WorldSpan);
+		const float GoalY = FMath::Clamp(Configuration.Goal.Y, 0, WorldSpan);
 		Simulator.CreateGoal(GroupID, {GoalX, GoalY});
 		++GroupID;
 	}
