@@ -57,7 +57,7 @@ public:
 		{
 			const float OrderTerm = OtherVelocity.Length() * DeltaTime;
 			const float SquareRootTerm = VecToOther.Length() + (VecToOther - OrderTerm * OtherVelocity.GetSafeNormal()).Length();
-			check(FMath::Square(SquareRootTerm) - FMath::Square(OrderTerm) > 0)
+			check(FMath::Square(SquareRootTerm) - FMath::Square(OrderTerm) >= 0)
 			return 0.5f * FMath::Sqrt(FMath::Square(SquareRootTerm) - FMath::Square(OrderTerm));
 		};
 		
