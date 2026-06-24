@@ -1,4 +1,6 @@
-﻿#include "Simulator.h"
+﻿// Copyright Anupam Sahu. All Rights Reserved.
+
+#include "Simulator.h"
 
 constexpr float MAX_COST = TNumericLimits<float>::Max();
 
