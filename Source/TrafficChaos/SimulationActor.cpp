@@ -18,7 +18,7 @@ void ASimulationActor::PostEditChangeProperty(struct FPropertyChangedEvent& Prop
 	if (PropertyName == GET_MEMBER_NAME_CHECKED(ASimulationActor, PedParameters))
 	{
 		GEngine->AddOnScreenDebugMessage(-1, 2, FColor::White, FString::Printf(TEXT("Ped Parameters changed : %s"), *PropertyChangedEvent.GetPropertyName().ToString()));
-		Simulator.SetPedParameters(PedParameters);
+		Simulator.SetAdvectionParameters(PedParameters);
 	}
 	
 	Super::PostEditChangeProperty(PropertyChangedEvent);
@@ -36,7 +36,7 @@ void ASimulationActor::BeginPlay()
 	Super::BeginPlay();
 	Simulator.Initialize(GridResolution, WorldSpan, SpawnConfigurations.Num());
 	Simulator.SetSimulationParameters(SimParameters);
-	Simulator.SetPedParameters(PedParameters);
+	Simulator.SetAdvectionParameters(PedParameters);
 	SpawnEntities();
 }
 
@@ -71,7 +71,7 @@ void ASimulationActor::SpawnEntities()
 		
 		const float GoalX = FMath::Clamp(Configuration.Goal.X, 0, WorldSpan);
 		const float GoalY = FMath::Clamp(Configuration.Goal.Y, 0, WorldSpan);
-		Simulator.CreateGoal(GroupID, {GoalX, GoalY});
+		Simulator.RegisterGoal(GroupID, {GoalX, GoalY});
 		++GroupID;
 	}
 }
@@ -80,7 +80,7 @@ void ASimulationActor::Tick(const float DeltaSeconds)
 {
 	Super::Tick(DeltaSeconds);
 	Simulator.Update(Entities, DeltaSeconds);
-	Simulator.PerformCrowdAdvection(Entities, DeltaSeconds);
+	Simulator.CrowdAdvection(Entities, DeltaSeconds);
 	DrawDebugGraphics(DeltaSeconds);
 }
 
