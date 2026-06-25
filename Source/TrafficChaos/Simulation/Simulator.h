@@ -7,6 +7,7 @@
 #include "Containers/Deque.h"
 #include "SocialForceModel.h"
 #include "SimulationDataTypes.h"
+#include "SpatialAcceleration/RpImplicitGrid.h"
 
 class TRAFFICCHAOS_API TCSimulator
 {
@@ -29,6 +30,11 @@ public:
 	void SetAdvectionParameters(const FTCSocialForceParameters& Parameters)
 	{
 		PedParameters = Parameters;
+	}
+	
+	const FRpImplicitGrid& GetImplicitGrid() const
+	{
+		return ImplicitGrid;
 	}
 	
 	void Initialize(float Resolution, float WorldSize, int NumGroups);
@@ -57,6 +63,8 @@ private:
 	
 	FTCSimulationParameters SimParameters;
 	FTCSocialForceParameters PedParameters;
+	
+	FRpImplicitGrid ImplicitGrid;
 	
 	int NumGroups = 0;
 }; 
