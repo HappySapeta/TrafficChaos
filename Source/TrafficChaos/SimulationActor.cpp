@@ -101,7 +101,7 @@ void ASimulationActor::DrawDebugGraphics(const float DeltaSeconds)
 			DrawDebugSphere(World, Position, 25.0f, 10, EntityColors[Entity.GroupID]);
 			if (bDrawTraces)
 			{
-				DrawDebugPoint(World, Position, 2.0f, EntityColors[Entity.GroupID], false, 10.0f);
+				DrawDebugPoint(World, Position, 2.0f, EntityColors[Entity.GroupID], false, 20.0f);
 			}
 		}
 	}
