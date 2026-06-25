@@ -6,6 +6,7 @@ constexpr float MAX_COST = TNumericLimits<float>::Max();
 
 void TCSimulator::Initialize(const float Resolution, const float WorldSize, const int NewNumGroups)
 {
+	ImplicitGrid.Initialize(FFloatRange(0, WorldSize), Resolution);
 	Field.Initialize(Resolution, WorldSize, {});
 	
 	const auto InitializeCell = [NewNumGroups](FTCCell* Cell, const FVector2f& Coords)
@@ -27,6 +28,13 @@ void TCSimulator::RegisterGoal(const int GroupID, const FVector2f& Goal)
 
 void TCSimulator::CrowdAdvection(TArray<FTCEntity>& Entities, const float TimeStep)
 {
+	TArray<FVector> Positions;
+	for (const FTCEntity& Entity : Entities)
+	{
+		Positions.Push({Entity.Position.X, Entity.Position.Y, 0.0f});
+	}
+	ImplicitGrid.Update(Positions);
+	
 	for (int EntityIndex = 0; EntityIndex < Entities.Num(); ++EntityIndex)
 	{
 		FVector2f Force = FVector2f::ZeroVector;
@@ -40,7 +48,10 @@ void TCSimulator::CrowdAdvection(TArray<FTCEntity>& Entities, const float TimeSt
 		
 		Force += FTCSocialForces::GetDrivingForce(CurrentVelocity, DesiredDirection, PedParameters);
 		 
-		for (int OtherEntityIndex = 0; OtherEntityIndex < Entities.Num(); ++OtherEntityIndex)
+		FRpSearchResults Results;
+		ImplicitGrid.RadialSearch({CurrentPosition.X, CurrentPosition.Y, 0}, PedParameters.AvoidanceRadius, Results);
+		
+		for (int OtherEntityIndex : Results)
 		{
 			if (EntityIndex == OtherEntityIndex)
 			{

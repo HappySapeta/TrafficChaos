@@ -89,6 +89,9 @@ void ASimulationActor::DrawDebugGraphics(const float DeltaSeconds)
 	const UWorld* World = GetWorld();
 	const FRpSpatialData<FTCCell>& Field = Simulator.GetFieldData();
 	
+	const FRpImplicitGrid& ImplicitGrid = Simulator.GetImplicitGrid();
+	ImplicitGrid.DrawDebug(World, DeltaSeconds);
+	
 	// Draw entities.
 	if (bDrawEntities)
 	{
