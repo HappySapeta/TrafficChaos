@@ -273,24 +273,20 @@ void TCSimulator::UpdateDesiredVelocityField(const int GroupID)
 {
 	const auto CalculateDesiredVelocity = [this, GroupID](FTCCell* Cell, const FVector2f& Coords) -> void
 	{
-		FVector4 NormPotential = FVector4
+		float RootSquareSum = 0; 
+		for (int Direction = 0; Direction < NUM_DIRECTIONS; ++Direction)
 		{
-			Cell->PotentialGradient[GroupID][NORTH],
-			Cell->PotentialGradient[GroupID][WEST],
-			Cell->PotentialGradient[GroupID][SOUTH],
-			Cell->PotentialGradient[GroupID][EAST]
-		}.GetSafeNormal();
+			RootSquareSum += FMath::Square(Cell->PotentialGradient[GroupID][Direction]);
+		}
+		RootSquareSum = FMath::Sqrt(RootSquareSum);
 		
-		Cell->PotentialGradient[GroupID][NORTH] = NormPotential.X;
-		Cell->PotentialGradient[GroupID][WEST] = NormPotential.Y;
-		Cell->PotentialGradient[GroupID][SOUTH] = NormPotential.Z;
-		Cell->PotentialGradient[GroupID][EAST] = NormPotential.W;
-
 		Cell->DesiredVelocity[GroupID] = {0, 0};
-		Cell->DesiredVelocity[GroupID] += -Cell->SpeedField[NORTH] * NormPotential.X * DIRECTION_OFFSETS[NORTH];
-		Cell->DesiredVelocity[GroupID] += -Cell->SpeedField[WEST] * NormPotential.Y * DIRECTION_OFFSETS[WEST];
-		Cell->DesiredVelocity[GroupID] += -Cell->SpeedField[SOUTH] * NormPotential.Z * DIRECTION_OFFSETS[SOUTH];
-		Cell->DesiredVelocity[GroupID] += -Cell->SpeedField[EAST] * NormPotential.W * DIRECTION_OFFSETS[EAST];
+		for (int Direction = 0; Direction < NUM_DIRECTIONS; ++Direction)
+		{
+			const float NormPotential = Cell->PotentialGradient[GroupID][Direction] / RootSquareSum;
+			Cell->PotentialGradient[GroupID][Direction] = NormPotential;
+			Cell->DesiredVelocity[GroupID] += -Cell->SpeedField[Direction] * NormPotential * DIRECTION_OFFSETS[Direction];
+		}
 	};
 	Field.ForEachCellPerform(CalculateDesiredVelocity);
 }
