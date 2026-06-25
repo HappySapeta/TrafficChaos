@@ -94,7 +94,12 @@ void ASimulationActor::DrawDebugGraphics(const float DeltaSeconds)
 	{
 		for (const FTCEntity& Entity : Entities)
 		{
-			DrawDebugSphere(World, {Entity.Position.X, Entity.Position.Y, 0.0f}, 25.0f, 10,  EntityColors[Entity.GroupID]);
+			const FVector Position = {Entity.Position.X, Entity.Position.Y, 0.0f};
+			DrawDebugSphere(World, Position, 25.0f, 10, EntityColors[Entity.GroupID]);
+			if (bDrawTraces)
+			{
+				DrawDebugPoint(World, Position, 2.0f, EntityColors[Entity.GroupID], false, 10.0f);
+			}
 		}
 	}
 	

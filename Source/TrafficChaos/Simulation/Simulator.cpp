@@ -357,11 +357,6 @@ float TCSimulator::GetFiniteDifferenceApproximation(const FVector2f& Coords, con
 	return FMath::Min(PhiX + Cx, PhiY + Cy);
 }
 
-float TCSimulator::GaussianDistribution(const float Distance)
-{
-	return FMath::Exp(-1 * FMath::Square(Distance) / SimParameters.GaussianFallOff) * SimParameters.GaussianScale;
-}
-
 TArray<FTCCell*> TCSimulator::GetNeighbors(const FVector2f& Coords)
 {
 	static TArray<FTCCell*> Neighbors;

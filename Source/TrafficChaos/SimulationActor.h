@@ -81,6 +81,9 @@ private:
 	UPROPERTY(EditAnywhere, Category = "Debug Settings")
 	bool bDrawEntities = true;
 	
+	UPROPERTY(EditAnywhere, Category = "Debug Settings")
+	bool bDrawTraces = false;
+	
 	UPROPERTY(EditAnywhere, Category = "Debug Settings", meta = (ClampMin = 0, UIMin = 0))
 	int DebugGroupID = 0;
 	

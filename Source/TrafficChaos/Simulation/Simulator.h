@@ -45,7 +45,6 @@ private:
 	void UpdatePotentialGradient(const int GroupID);
 	void UpdateDesiredVelocityField(const int GroupID);
 	float GetFiniteDifferenceApproximation(const FVector2f& Coords, const int GroupID);
-	float GaussianDistribution(const float Distance);
 	TArray<FTCCell*> GetNeighbors(const FVector2f& Coords);
 
 private:

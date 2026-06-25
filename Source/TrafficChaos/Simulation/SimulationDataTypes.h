@@ -77,22 +77,10 @@ struct FTCSimulationParameters
 	GENERATED_BODY()
 	
 	UPROPERTY(EditAnywhere)
-	float GaussianFallOff = 1.0;
-	
-	UPROPERTY(EditAnywhere)
-	float GaussianScale = 1.0f;
-	
-	UPROPERTY(EditAnywhere)
 	float MaxTopoSpeed = 30;
 	
 	UPROPERTY(EditAnywhere)
 	float MinTopoSpeed = 10;
-	
-	UPROPERTY(EditAnywhere)
-	float MinSlope = 0;
-	
-	UPROPERTY(EditAnywhere)
-	float MaxSlope = 1;
 	
 	UPROPERTY(EditAnywhere)
 	float MinDensity = 0;
