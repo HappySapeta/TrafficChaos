@@ -1,4 +1,4 @@
-﻿// Fill out your copyright notice in the Description page of Project Settings.
+﻿// Copyright Anupam Sahu. All Rights Reserved.
 
 #pragma once
 
@@ -80,6 +80,9 @@ private:
 	
 	UPROPERTY(EditAnywhere, Category = "Debug Settings")
 	bool bDrawEntities = true;
+	
+	UPROPERTY(EditAnywhere, Category = "Debug Settings")
+	bool bDrawTraces = false;
 	
 	UPROPERTY(EditAnywhere, Category = "Debug Settings", meta = (ClampMin = 0, UIMin = 0))
 	int DebugGroupID = 0;
