@@ -5,6 +5,8 @@
 #include "CoreMinimal.h"
 #include "SimulationDataTypes.generated.h"
 
+constexpr int NUM_DIRECTIONS = 8;
+
 const FVector2f D_NORTH			{ 0, -1};
 const FVector2f D_NORTH_WEST	{-1, -1};
 const FVector2f D_WEST			{-1,  0};
@@ -15,22 +17,40 @@ const FVector2f D_EAST			{+1,  0};
 const FVector2f D_NORTH_EAST	{+1, -1};
 
 // North, West, South, EastDIR
-const TStaticArray<FVector2f, 4> DIRECTION_OFFSETS
+const TStaticArray<FVector2f, NUM_DIRECTIONS> DIRECTION_OFFSETS
 {
-	D_NORTH, D_WEST, D_SOUTH, D_EAST,
+	D_NORTH,
+	D_NORTH_WEST,
+	D_WEST,
+	D_SOUTH_WEST,
+	D_SOUTH,
+	D_SOUTH_EAST,
+	D_EAST,
+	D_NORTH_EAST
 };
 
 enum EDirectionIndex : uint8
 {
 	NORTH,
+	NORTH_WEST,
 	WEST,
+	SOUTH_WEST,
 	SOUTH,
+	SOUTH_EAST,
 	EAST,
+	NORTH_EAST
 };
 
 const TArray<EDirectionIndex> CARDINAL_DIRECTIONS
 {
-	NORTH, WEST, SOUTH, EAST
+	NORTH,
+	NORTH_WEST,
+	WEST,
+	SOUTH_WEST,
+	SOUTH,
+	SOUTH_EAST,
+	EAST,
+	NORTH_EAST
 };
 
 struct FTCEntity
@@ -53,12 +73,12 @@ struct FTCCell
 	float Density;
 	FVector2f Velocity;
 	FVector2f Coords;
-	TStaticArray<float, 4> CostField;
-	TStaticArray<float, 4> SpeedField;
+	TStaticArray<float, NUM_DIRECTIONS> CostField;
+	TStaticArray<float, NUM_DIRECTIONS> SpeedField;
 	
 	TArray<float> Potential;
 	TArray<FVector2f> DesiredVelocity;
-	TArray<TStaticArray<float, 4>> PotentialGradient;
+	TArray<TStaticArray<float, NUM_DIRECTIONS>> PotentialGradient;
 };
 
 struct FTCCheapestNeighbor
