@@ -302,52 +302,62 @@ void TCSimulator::UpdateDesiredVelocityField(const int GroupID)
 	Field.ForEachCellPerform(CalculateDesiredVelocity);
 }
 
+FTCCheapestNeighbor TCSimulator::GetCheapestNeighbor
+(
+	const FVector2f& Coords, 
+	const EDirectionIndex First,
+	const EDirectionIndex Second, 
+	int GroupID
+)
+{
+	FTCCell* CurrentCell = Field.GetDataAt(Coords);
+	FTCCell* FirstNeighbor = Field.GetDataAt(Coords, DIRECTION_OFFSETS[First]);
+	FTCCell* SecondNeighbor = Field.GetDataAt(Coords, DIRECTION_OFFSETS[Second]);
+
+	if(FirstNeighbor && !SecondNeighbor)
+	{
+		return {FirstNeighbor->Potential[GroupID], CurrentCell->CostField[First]};
+	}
+	else if(!FirstNeighbor && SecondNeighbor)
+	{
+		return {SecondNeighbor->Potential[GroupID], CurrentCell->CostField[Second]};
+	}
+	else if(!FirstNeighbor && !SecondNeighbor)
+	{
+		return {MAX_COST, MAX_COST};
+	}
+
+	const FTCCheapestNeighbor ResultFirst = {FirstNeighbor->Potential[GroupID], CurrentCell->CostField[First]};
+	const FTCCheapestNeighbor ResultSecond = {SecondNeighbor->Potential[GroupID], CurrentCell->CostField[Second]};
+		
+	return ResultFirst.Sum() < ResultSecond.Sum() ? ResultFirst : ResultSecond;
+}
+
 float TCSimulator::GetFiniteDifferenceApproximation(const FVector2f& Coords, const int GroupID)
 {
-	const auto GetCheapestAdjCellOnAxis = [this, GroupID](const FVector2f& Coordinates, const EDirectionIndex FirstDirection, const EDirectionIndex SecondDirection) -> FTCCheapestNeighbor
-	{
-		FTCCell* CurrentCell = Field.GetDataAt(Coordinates);
-		FTCCell* FirstNeighbor = Field.GetDataAt(Coordinates, DIRECTION_OFFSETS[FirstDirection]);
-		FTCCell* SecondNeighbor = Field.GetDataAt(Coordinates, DIRECTION_OFFSETS[SecondDirection]);
-
-		if(FirstNeighbor && !SecondNeighbor)
-		{
-			return {FirstNeighbor->Potential[GroupID], CurrentCell->CostField[FirstDirection]};
-		}
-		else if(!FirstNeighbor && SecondNeighbor)
-		{
-			return {SecondNeighbor->Potential[GroupID], CurrentCell->CostField[SecondDirection]};
-		}
-		else if(!FirstNeighbor && !SecondNeighbor)
-		{
-			return {MAX_COST, MAX_COST};
-		}
-
-		const FTCCheapestNeighbor ResultFirst = {FirstNeighbor->Potential[GroupID], CurrentCell->CostField[FirstDirection]};
-		const FTCCheapestNeighbor ResultSecond = {SecondNeighbor->Potential[GroupID], CurrentCell->CostField[SecondDirection]};
-		
-		return ResultFirst.Sum() < ResultSecond.Sum() ? ResultFirst : ResultSecond;
-	};
+	const auto [PhiX, Cx] = GetCheapestNeighbor(Coords, EAST, WEST, GroupID);
+	const auto [PhiY, Cy] = GetCheapestNeighbor(Coords, NORTH, SOUTH, GroupID);
 	
-	auto Square = [](const float V){ return V * V; };
-	const auto [PhiX, Cx] = GetCheapestAdjCellOnAxis(Coords, EAST, WEST);
-	const auto [PhiY, Cy] = GetCheapestAdjCellOnAxis(Coords, NORTH, SOUTH);
-	
-	if(PhiX == MAX_COST)
+	if(PhiX == MAX_COST && PhiY < MAX_COST)
 	{
-		return PhiY + Cy;
+		return FMath::Sqrt(Cy) + PhiY;
 	}
 
-	if(PhiY == MAX_COST)
+	if(PhiY == MAX_COST && PhiX < MAX_COST)
 	{
-		return PhiX + Cx;
+		return FMath::Sqrt(Cx) + PhiX;
 	}
 	
-	const float QuadraticCoeffA = Square(Cy) + Square(Cx);
-	const float QuadraticCoeffB = -2 * ((PhiX * Square(Cy)) + (PhiY * Square(Cx)));
-	const float QuadraticCoeffC = (Square(PhiX) * Square(Cy)) + (Square(PhiY) * Square(Cx)) - (Square(Cx) * Square(Cy));
+	if (PhiX == MAX_COST && PhiY == MAX_COST)
+	{
+		return MAX_COST;
+	}
+	
+	const float QuadraticCoeffA = Cy + Cx;
+	const float QuadraticCoeffB = -2 * ((PhiX * Cy) + (PhiY * Cx));
+	const float QuadraticCoeffC = (FMath::Square(PhiX) * Cy) + (FMath::Square(PhiY) * Cx) - (Cx * Cy);
 
-	const float TermUnderSqrt = Square(QuadraticCoeffB) - (4 * QuadraticCoeffA * QuadraticCoeffC);
+	const float TermUnderSqrt = FMath::Square(QuadraticCoeffB) - (4 * QuadraticCoeffA * QuadraticCoeffC);
 	if(TermUnderSqrt >= 0.0f)
 	{
 		const float FirstSolution = (-QuadraticCoeffB + FMath::Sqrt(TermUnderSqrt)) / (2 * QuadraticCoeffA);
@@ -361,7 +371,7 @@ float TCSimulator::GetFiniteDifferenceApproximation(const FVector2f& Coords, con
 		}
 	}
 	
-	return FMath::Min(PhiX + Cx, PhiY + Cy);
+	return FMath::Max(PhiX + Cx, PhiY + Cy);
 }
 
 TArray<FTCCell*> TCSimulator::GetNeighbors(const FVector2f& Coords)
