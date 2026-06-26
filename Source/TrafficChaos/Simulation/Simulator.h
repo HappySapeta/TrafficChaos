@@ -51,6 +51,7 @@ private:
 	void UpdatePotentialGradient(const int GroupID);
 	void UpdateDesiredVelocityField(const int GroupID);
 	float GetFiniteDifferenceApproximation(const FVector2f& Coords, const int GroupID);
+	FTCCheapestNeighbor GetCheapestNeighbor(const FVector2f& Coords, EDirectionIndex First, EDirectionIndex Second, int GroupID);
 	TArray<FTCCell*> GetNeighbors(const FVector2f& Coords);
 
 private:
