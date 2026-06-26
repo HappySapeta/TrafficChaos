@@ -343,9 +343,9 @@ float TCSimulator::GetFiniteDifferenceApproximation(const FVector2f& Coords, con
 		return PhiX + Cx;
 	}
 	
-	const float QuadraticCoeffA = Square(Cy) + Square(Cx);
-	const float QuadraticCoeffB = -2 * ((PhiX * Square(Cy)) + (PhiY * Square(Cx)));
-	const float QuadraticCoeffC = (Square(PhiX) * Square(Cy)) + (Square(PhiY) * Square(Cx)) - (Square(Cx) * Square(Cy));
+	const float QuadraticCoeffA = Cy + Cx;
+	const float QuadraticCoeffB = -2 * ((PhiX * Cy) + (PhiY * Cx));
+	const float QuadraticCoeffC = (Square(PhiX) * Cy) + (Square(PhiY) * Cx) - (Cx * Cy);
 
 	const float TermUnderSqrt = Square(QuadraticCoeffB) - (4 * QuadraticCoeffA * QuadraticCoeffC);
 	if(TermUnderSqrt >= 0.0f)
