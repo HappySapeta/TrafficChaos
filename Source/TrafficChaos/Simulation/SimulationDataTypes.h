@@ -71,6 +71,7 @@ struct FTCCell
 	{}
 	
 	float Density;
+	float Discomfort;
 	FVector2f Velocity;
 	FVector2f Coords;
 	TStaticArray<float, NUM_DIRECTIONS> CostField;
@@ -122,4 +123,7 @@ struct FTCSimulationParameters
 	
 	UPROPERTY(EditAnywhere)
 	float TimeCostConstant = 1;
+	
+	UPROPERTY(EditAnywhere)
+	float DiscomfortConstant = 1;
 };

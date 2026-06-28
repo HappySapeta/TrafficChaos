@@ -3,6 +3,8 @@
 #include "Simulator.h"
 
 constexpr float MAX_COST = TNumericLimits<float>::Max();
+constexpr float HALF_FOV = FMath::DegreesToRadians(200.0f) * 0.5f;
+constexpr float WEAK_INF = 0.5f;
 
 void TCSimulator::Initialize(const float Resolution, const float WorldSize, const int NewNumGroups)
 {
@@ -12,6 +14,8 @@ void TCSimulator::Initialize(const float Resolution, const float WorldSize, cons
 	const auto InitializeCell = [NewNumGroups](FTCCell* Cell, const FVector2f& Coords)
 	{
 		Cell->Coords = Coords;
+		Cell->Density = 0;
+		Cell->Discomfort = 0;
 		Cell->DesiredVelocity.Init({}, NewNumGroups);
 		Cell->Potential.Init({}, NewNumGroups);
 		Cell->PotentialGradient.Init({}, NewNumGroups);
@@ -45,8 +49,8 @@ void TCSimulator::CrowdAdvection(TArray<FTCEntity>& Entities, const float TimeSt
 		const FVector2f GridLocation = Field.WorldToGrid(CurrentPosition);
 		const FVector2f& DesiredVelocity = Field.GetDataAt(GridLocation)->DesiredVelocity[Entities[EntityIndex].GroupID];
 		const FVector2f DesiredDirection = DesiredVelocity.GetSafeNormal();
-		
-		Force += FTCSocialForces::GetDrivingForce(CurrentVelocity, DesiredDirection, PedParameters);
+		const FVector2f DrivingForce = FTCSocialForces::GetDrivingForce(CurrentVelocity, DesiredDirection, PedParameters); 
+		Force += GetSocialForceInfluence(DesiredDirection, DrivingForce) * DrivingForce;
 		 
 		FRpSearchResults Results;
 		ImplicitGrid.RadialSearch({CurrentPosition.X, CurrentPosition.Y, 0}, PedParameters.AvoidanceRadius, Results);
@@ -60,10 +64,16 @@ void TCSimulator::CrowdAdvection(TArray<FTCEntity>& Entities, const float TimeSt
 			
 			const FVector2f& OtherPosition = Entities[OtherEntityIndex].Position;
 			const FVector2f& OtherVelocity = Entities[OtherEntityIndex].Velocity;
-			Force += FTCSocialForces::GetAvoidanceForce(CurrentPosition, OtherPosition, OtherVelocity, TimeStep, PedParameters);
+			const FVector2f AvoidanceForce = FTCSocialForces::GetAvoidanceForce(CurrentPosition, OtherPosition, OtherVelocity, TimeStep, PedParameters); 
+			Force += GetSocialForceInfluence(DesiredDirection, -AvoidanceForce) * AvoidanceForce;
 		}
 		
-		Entities[EntityIndex].Velocity = Entities[EntityIndex].Velocity + Force * TimeStep;
+		const auto LimitSpeed = [this](const FVector2f& Velocity) -> FVector2f
+		{
+			return FMath::Min(PedParameters.DesiredSpeed, Velocity.Length()) * Velocity.GetSafeNormal();
+		};
+		
+		Entities[EntityIndex].Velocity = LimitSpeed(Entities[EntityIndex].Velocity + Force * TimeStep);
 		Entities[EntityIndex].Position += Entities[EntityIndex].Velocity * TimeStep;
 	}	
 }
@@ -249,9 +259,10 @@ void TCSimulator::UpdateCostField()
 			}
 			
 			const float SpeedField = Cell->SpeedField[DirectionIndex];
+			const float Discomfort = NeighborCell->Discomfort;
 			if(SpeedField != 0)
 			{
-				Cell->CostField[DirectionIndex] = (SimParameters.PathCostConstant * SpeedField + SimParameters.TimeCostConstant) / SpeedField;
+				Cell->CostField[DirectionIndex] = (SimParameters.PathCostConstant * SpeedField + SimParameters.TimeCostConstant + SimParameters.DiscomfortConstant * Discomfort) / SpeedField;
 			}
 			else
 			{
@@ -381,4 +392,14 @@ TArray<FTCCell*> TCSimulator::GetNeighbors(const FVector2f& Coords)
 	}
 	
 	return Neighbors;
+}
+
+float TCSimulator::GetSocialForceInfluence(const FVector2f& DesiredDirection, const FVector2f& Force)
+{
+	if (FVector2f::DotProduct(DesiredDirection, Force) >= Force.Length() * FMath::Cos(HALF_FOV))
+	{
+		return 1.0f;
+	}
+	
+	return WEAK_INF;
 }
