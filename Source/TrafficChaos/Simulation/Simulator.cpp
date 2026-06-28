@@ -122,11 +122,10 @@ void TCSimulator::Solve(const int GroupID)
 				continue;
 			}
 			
-			float& CurrentPotential = Neighbor->Potential[GroupID];
 			const float NewPotential = GetFiniteDifferenceApproximation(Neighbor->Coords, GroupID);
-			if(NewPotential < CurrentPotential)
+			if(NewPotential < Neighbor->Potential[GroupID])
 			{
-				CurrentPotential = NewPotential;
+				Neighbor->Potential[GroupID] = NewPotential;
 				Candidates.PushLast(Neighbor);
 			}
 		}
@@ -302,13 +301,7 @@ void TCSimulator::UpdateDesiredVelocityField(const int GroupID)
 	Field.ForEachCellPerform(CalculateDesiredVelocity);
 }
 
-FTCCheapestNeighbor TCSimulator::GetCheapestNeighbor
-(
-	const FVector2f& Coords, 
-	const EDirectionIndex First,
-	const EDirectionIndex Second, 
-	int GroupID
-)
+FTCCheapestNeighbor TCSimulator::GetCheapestNeighbor(const FVector2f& Coords, const EDirectionIndex First, const EDirectionIndex Second, int GroupID)
 {
 	FTCCell* CurrentCell = Field.GetDataAt(Coords);
 	FTCCell* FirstNeighbor = Field.GetDataAt(Coords, DIRECTION_OFFSETS[First]);
@@ -340,12 +333,12 @@ float TCSimulator::GetFiniteDifferenceApproximation(const FVector2f& Coords, con
 	
 	if(PhiX == MAX_COST && PhiY < MAX_COST)
 	{
-		return FMath::Sqrt(Cy) + PhiY;
+		return Cy + PhiY;
 	}
 
 	if(PhiY == MAX_COST && PhiX < MAX_COST)
 	{
-		return FMath::Sqrt(Cx) + PhiX;
+		return Cx + PhiX;
 	}
 	
 	if (PhiX == MAX_COST && PhiY == MAX_COST)
@@ -371,7 +364,7 @@ float TCSimulator::GetFiniteDifferenceApproximation(const FVector2f& Coords, con
 		}
 	}
 	
-	return FMath::Max(PhiX + Cx, PhiY + Cy);
+	return FMath::Min(PhiX + Cx, PhiY + Cy);
 }
 
 TArray<FTCCell*> TCSimulator::GetNeighbors(const FVector2f& Coords)
