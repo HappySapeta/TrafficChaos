@@ -20,6 +20,12 @@ struct FTCSocialForceParameters
 	
 	UPROPERTY(EditAnywhere)
 	float AvoidanceStrength = 1.0f;
+	
+	UPROPERTY(EditAnywhere)
+	bool bEnableTurningLimit = false;
+	
+	UPROPERTY(EditAnywhere, meta = (EditCondition = "bEnableTurningLimit", EditConditionHides = true))
+	float MaxTurnAngle = 90.0f;
 };
 
 class FTCSocialForces

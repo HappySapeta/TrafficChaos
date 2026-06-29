@@ -1,6 +1,7 @@
 ﻿// Copyright Anupam Sahu. All Rights Reserved.
 
 #include "Simulator.h"
+#include "Math.h"
 
 constexpr float MAX_COST = TNumericLimits<float>::Max();
 constexpr float HALF_FOV = 100.0f;
@@ -73,6 +74,19 @@ void TCSimulator::CrowdAdvection(TArray<FTCEntity>& Entities, const float TimeSt
 		
 		// Limit Speed
 		NewVelocity = NewVelocity.GetSafeNormal() * FMath::Min(PedParameters.DesiredSpeed, NewVelocity.Length());
+		
+		if (PedParameters.bEnableTurningLimit)
+		{
+			// Limit Angle
+			const float Angle = FMath::ClampAngle
+			(
+				FRpMath::GetSignedAngleDegrees(DesiredVelocity, NewVelocity), 
+				-PedParameters.MaxTurnAngle, 
+				PedParameters.MaxTurnAngle
+			);
+			const FVector2f NewDirection = DesiredDirection.GetRotated(Angle);
+			NewVelocity = NewDirection * NewVelocity.Length();
+		}
 		
 		Entities[EntityIndex].Velocity = NewVelocity;
 		Entities[EntityIndex].Position += NewVelocity * TimeStep;
