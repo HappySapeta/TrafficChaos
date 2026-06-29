@@ -3,8 +3,9 @@
 #include "Simulator.h"
 
 constexpr float MAX_COST = TNumericLimits<float>::Max();
-constexpr float HALF_FOV = FMath::DegreesToRadians(200.0f) * 0.5f;
-constexpr float WEAK_INF = 0.5f;
+constexpr float HALF_FOV = 90.0f;
+constexpr float WEAK_INF = 0.05f;
+constexpr float MAX_TURN_ANGLE = 90.0f;
 
 void TCSimulator::Initialize(const float Resolution, const float WorldSize, const int NewNumGroups)
 {
@@ -68,13 +69,21 @@ void TCSimulator::CrowdAdvection(TArray<FTCEntity>& Entities, const float TimeSt
 			Force += GetSocialForceInfluence(DesiredDirection, -AvoidanceForce) * AvoidanceForce;
 		}
 		
-		const auto LimitSpeed = [this](const FVector2f& Velocity) -> FVector2f
-		{
-			return FMath::Min(PedParameters.DesiredSpeed, Velocity.Length()) * Velocity.GetSafeNormal();
-		};
+		FVector2f NewVelocity = Entities[EntityIndex].Velocity + Force * TimeStep;
 		
-		Entities[EntityIndex].Velocity = LimitSpeed(Entities[EntityIndex].Velocity + Force * TimeStep);
-		Entities[EntityIndex].Position += Entities[EntityIndex].Velocity * TimeStep;
+		// Limit Speed
+		NewVelocity = NewVelocity.GetSafeNormal() * FMath::Min(PedParameters.DesiredSpeed, NewVelocity.Length());
+		
+		// Limit Angle
+		float Angle = FMath::RadiansToDegrees(FMath::Acos(DesiredVelocity.GetSafeNormal().Dot(NewVelocity.GetSafeNormal())));
+		if (FMath::Abs(Angle) > MAX_TURN_ANGLE)
+		{
+			const FVector2f NewDirection = DesiredVelocity.GetSafeNormal().GetRotated(FMath::Sign(Angle) * MAX_TURN_ANGLE).GetSafeNormal();
+			NewVelocity = NewDirection * NewVelocity.Length();
+		}
+		
+		Entities[EntityIndex].Velocity = NewVelocity;
+		Entities[EntityIndex].Position += NewVelocity * TimeStep;
 	}	
 }
 
@@ -396,7 +405,7 @@ TArray<FTCCell*> TCSimulator::GetNeighbors(const FVector2f& Coords)
 
 float TCSimulator::GetSocialForceInfluence(const FVector2f& DesiredDirection, const FVector2f& Force)
 {
-	if (FVector2f::DotProduct(DesiredDirection, Force) >= Force.Length() * FMath::Cos(HALF_FOV))
+	if (FVector2f::DotProduct(DesiredDirection, Force) >= Force.Length() * FMath::Cos(FMath::DegreesToRadians(HALF_FOV)))
 	{
 		return 1.0f;
 	}
