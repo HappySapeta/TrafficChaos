@@ -277,7 +277,7 @@ void TCSimulator::UpdateCostField()
 			const float Discomfort = NeighborCell->Discomfort;
 			if(SpeedField != 0)
 			{
-				Cell->CostField[DirectionIndex] = (SimParameters.PathCostConstant * SpeedField + SimParameters.TimeCostConstant + SimParameters.DiscomfortConstant * Discomfort) / SpeedField;
+				Cell->CostField[DirectionIndex] = Cell->Density * SimParameters.DensityConstant + (SimParameters.PathCostConstant * SpeedField + SimParameters.TimeCostConstant + SimParameters.DiscomfortConstant * Discomfort) / SpeedField;
 			}
 			else
 			{

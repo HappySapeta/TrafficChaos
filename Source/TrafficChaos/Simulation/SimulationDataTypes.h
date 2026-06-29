@@ -126,4 +126,7 @@ struct FTCSimulationParameters
 	
 	UPROPERTY(EditAnywhere)
 	float DiscomfortConstant = 1;
+	
+	UPROPERTY(EditAnywhere)
+	float DensityConstant = 1;
 };
