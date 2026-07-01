@@ -62,15 +62,7 @@ struct FTCEntity
 
 struct FTCCell
 {
-	FTCCell()
-		: 
-	Density(0.0f), 
-	Velocity(FVector2f::ZeroVector),
-	Coords(FVector2f::ZeroVector),
-	CostField({0,0,0,0})
-	{}
-	
-	float Density;
+	uint8 Density;
 	float Discomfort;
 	FVector2f Velocity;
 	FVector2f Coords;
@@ -104,10 +96,10 @@ struct FTCSimulationParameters
 	float MinTopoSpeed = 10;
 	
 	UPROPERTY(EditAnywhere)
-	float MinDensity = 0;
+	uint8 MinDensity = 0;
 	
 	UPROPERTY(EditAnywhere)
-	float MaxDensity = 5;
+	uint8 MaxDensity = 5;
 	
 	UPROPERTY(EditAnywhere)
 	float DensityExponent = 1;
