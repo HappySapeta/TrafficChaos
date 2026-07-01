@@ -116,11 +116,17 @@ void ASimulationActor::DrawDebugGraphics(const float DeltaSeconds)
 	{
 		const auto DrawDensities = [this, World, Field](const FTCCell* Cell, const FVector2f& Coords)
 		{
+			if (Cell->Density == 0)
+			{
+				return;
+			}
+			
+			const float NormDensity = static_cast<float>(Cell->Density) / SimParameters.MaxDensity;
 			const float DebugBoxExtent = Field.GetCellSize();
 			const FVector2f WorldCoords = Field.GridToWorld(Coords);
 			const FLinearColor DebugColor = FLinearColor::LerpUsingHSV(FLinearColor{1.0f, 1.0f, 1.0f, 0.1f},
 																	   FLinearColor{1.0f, 0.0f, 0.0f, 0.5f}, 
-																	   Cell->Density);
+																	   NormDensity);
 		
 			const FVector BoxMin = {WorldCoords.X, WorldCoords.Y, 0};
 			const FVector BoxMax = {WorldCoords.X + DebugBoxExtent, WorldCoords.Y + DebugBoxExtent, DebugBoxExtent};
