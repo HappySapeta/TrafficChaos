@@ -1,6 +1,7 @@
 // Copyright Anupam Sahu. All Rights Reserved.
 
 #pragma once
+//#define USE_DENSITY_OPTIMIZATION
 
 #include "CoreMinimal.h"
 #include "SimulationDataTypes.generated.h"
@@ -62,7 +63,13 @@ struct FTCEntity
 
 struct FTCCell
 {
+#ifdef USE_DENSITY_OPTIMIZATION
 	float Density;
+#endif
+#ifndef USE_DENSITY_OPTIMIZATION
+	uint8 Density;
+#endif
+	
 	float Discomfort;
 	FVector2f Velocity;
 	FVector2f Coords;
@@ -103,10 +110,10 @@ struct FTCSimulationParameters
 	float MinTopoSpeed = 10;
 	
 	UPROPERTY(EditAnywhere)
-	float MinDensity = 0;
+	uint8 MinDensity = 0;
 	
 	UPROPERTY(EditAnywhere)
-	float MaxDensity = 5;
+	uint8 MaxDensity = 5;
 	
 	UPROPERTY(EditAnywhere)
 	float DensityExponent = 1;
