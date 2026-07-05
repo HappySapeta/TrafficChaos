@@ -177,7 +177,7 @@ void TCSimulator::UpdateDensityAndVelocityField(const TArray<FTCEntity>& Entitie
 			continue;
 		}
 		
-#ifdef USE_DENSITY_OPTIMIZATION
+#ifndef USE_DENSITY_OPTIMIZATION
 		const FVector2f EntityPreciseCoords = Field.WorldToGridCentered(EntityPosition);
 		const FVector2f ClosestCellCenterCoords = {FMath::RoundToInt(EntityPreciseCoords.X) - 0.5f, FMath::RoundToInt(EntityPreciseCoords.Y) - 0.5f};
 		
@@ -211,7 +211,7 @@ void TCSimulator::UpdateDensityAndVelocityField(const TArray<FTCEntity>& Entitie
 			SouthCell->Velocity += DensityContribution * EntityVelocity;
 		}
 #endif
-#ifndef USE_DENSITY_OPTIMIZATION
+#ifdef USE_DENSITY_OPTIMIZATION
 		const FVector2f Coords = Field.WorldToGrid(EntityPosition);
 		if(FTCCell* ClosestCell = Field.GetDataAt(Coords))
 		{

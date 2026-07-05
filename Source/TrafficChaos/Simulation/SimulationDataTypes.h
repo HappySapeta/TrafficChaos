@@ -1,7 +1,7 @@
 // Copyright Anupam Sahu. All Rights Reserved.
 
 #pragma once
-//#define USE_DENSITY_OPTIMIZATION
+#define USE_DENSITY_OPTIMIZATION
 
 #include "CoreMinimal.h"
 #include "SimulationDataTypes.generated.h"
@@ -63,10 +63,10 @@ struct FTCEntity
 
 struct FTCCell
 {
-#ifdef USE_DENSITY_OPTIMIZATION
+#ifndef USE_DENSITY_OPTIMIZATION
 	float Density;
 #endif
-#ifndef USE_DENSITY_OPTIMIZATION
+#ifdef USE_DENSITY_OPTIMIZATION
 	uint8 Density;
 #endif
 	
