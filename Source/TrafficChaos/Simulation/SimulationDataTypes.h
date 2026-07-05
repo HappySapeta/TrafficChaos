@@ -20,36 +20,36 @@ const FVector2f D_NORTH_EAST	{+1, -1};
 const TStaticArray<FVector2f, NUM_DIRECTIONS> DIRECTION_OFFSETS
 {
 	D_NORTH,
-	D_NORTH_WEST,
 	D_WEST,
-	D_SOUTH_WEST,
 	D_SOUTH,
-	D_SOUTH_EAST,
 	D_EAST,
+	D_NORTH_WEST,
+	D_SOUTH_WEST,
+	D_SOUTH_EAST,
 	D_NORTH_EAST
 };
 
 enum EDirectionIndex : uint8
 {
 	NORTH,
-	NORTH_WEST,
 	WEST,
-	SOUTH_WEST,
 	SOUTH,
-	SOUTH_EAST,
 	EAST,
+	NORTH_WEST,
+	SOUTH_WEST,
+	SOUTH_EAST,
 	NORTH_EAST
 };
 
 const TArray<EDirectionIndex> CARDINAL_DIRECTIONS
 {
 	NORTH,
-	NORTH_WEST,
 	WEST,
-	SOUTH_WEST,
 	SOUTH,
-	SOUTH_EAST,
 	EAST,
+	NORTH_WEST,
+	SOUTH_WEST,
+	SOUTH_EAST,
 	NORTH_EAST
 };
 
@@ -62,14 +62,6 @@ struct FTCEntity
 
 struct FTCCell
 {
-	FTCCell()
-		: 
-	Density(0.0f), 
-	Velocity(FVector2f::ZeroVector),
-	Coords(FVector2f::ZeroVector),
-	CostField({0,0,0,0})
-	{}
-	
 	float Density;
 	float Discomfort;
 	FVector2f Velocity;
@@ -90,6 +82,13 @@ struct FTCCheapestNeighbor
 	{
 		return Potential + CostToTravel;
 	}
+};
+
+UENUM()
+enum ETCAnisotropy : uint8
+{
+	FOUR_WAY = 4,
+	EIGHT_WAY = 8
 };
 
 USTRUCT()
@@ -129,4 +128,7 @@ struct FTCSimulationParameters
 	
 	UPROPERTY(EditAnywhere)
 	float DensityConstant = 1;
+	
+	UPROPERTY(EditAnywhere)
+	TEnumAsByte<ETCAnisotropy> Anisotropy = ETCAnisotropy::FOUR_WAY; 
 };

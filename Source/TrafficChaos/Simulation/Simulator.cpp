@@ -225,7 +225,7 @@ void TCSimulator::UpdateSpeedField()
 {
 	const auto CalculateSpeedField = [this](FTCCell* Cell, const FVector2f& Coords)
 	{
-		for(EDirectionIndex DirectionIndex : CARDINAL_DIRECTIONS)
+		for(int DirectionIndex = 0; DirectionIndex < SimParameters.Anisotropy; ++DirectionIndex)
 		{
 			const FVector2f& Direction = DIRECTION_OFFSETS[DirectionIndex];
 			
@@ -264,7 +264,7 @@ void TCSimulator::UpdateCostField()
 {
 	const auto CalculateCost = [this](FTCCell* Cell, const FVector2f& Coords)
 	{
-		for(const EDirectionIndex DirectionIndex : CARDINAL_DIRECTIONS)
+		for(int DirectionIndex = 0; DirectionIndex < SimParameters.Anisotropy; ++DirectionIndex)
 		{
 			const FTCCell* NeighborCell = Field.GetDataAt(Coords, DIRECTION_OFFSETS[DirectionIndex]);
 			if(!NeighborCell)
@@ -292,7 +292,7 @@ void TCSimulator::UpdatePotentialGradient(const int GroupID)
 {
 	const auto Operation = [this, GroupID](FTCCell* Cell, const FVector2f& Coords) -> void
 	{
-		for(const EDirectionIndex DirectionIndex : CARDINAL_DIRECTIONS)
+		for(int DirectionIndex = 0; DirectionIndex < SimParameters.Anisotropy; ++DirectionIndex)
 		{
 			if(const FTCCell* Neighbor = Field.GetDataAt(Coords, DIRECTION_OFFSETS[DirectionIndex]))
 			{
@@ -310,18 +310,18 @@ void TCSimulator::UpdateDesiredVelocityField(const int GroupID)
 	const auto CalculateDesiredVelocity = [this, GroupID](FTCCell* Cell, const FVector2f& Coords) -> void
 	{
 		float RootSquareSum = 0; 
-		for (int Direction = 0; Direction < NUM_DIRECTIONS; ++Direction)
+		for (int DirectionIndex = 0; DirectionIndex < SimParameters.Anisotropy; ++DirectionIndex)
 		{
-			RootSquareSum += FMath::Square(Cell->PotentialGradient[GroupID][Direction]);
+			RootSquareSum += FMath::Square(Cell->PotentialGradient[GroupID][DirectionIndex]);
 		}
 		RootSquareSum = FMath::Sqrt(RootSquareSum);
 		
 		Cell->DesiredVelocity[GroupID] = {0, 0};
-		for (int Direction = 0; Direction < NUM_DIRECTIONS; ++Direction)
+		for (int DirectionIndex = 0; DirectionIndex < SimParameters.Anisotropy; ++DirectionIndex)
 		{
-			const float NormPotential = Cell->PotentialGradient[GroupID][Direction] / RootSquareSum;
-			Cell->PotentialGradient[GroupID][Direction] = NormPotential;
-			Cell->DesiredVelocity[GroupID] += -Cell->SpeedField[Direction] * NormPotential * DIRECTION_OFFSETS[Direction];
+			const float NormPotential = Cell->PotentialGradient[GroupID][DirectionIndex] / RootSquareSum;
+			Cell->PotentialGradient[GroupID][DirectionIndex] = NormPotential;
+			Cell->DesiredVelocity[GroupID] += -Cell->SpeedField[DirectionIndex] * NormPotential * DIRECTION_OFFSETS[DirectionIndex];
 		}
 	};
 	Field.ForEachCellPerform(CalculateDesiredVelocity);
@@ -398,9 +398,9 @@ TArray<FTCCell*> TCSimulator::GetNeighbors(const FVector2f& Coords)
 	static TArray<FTCCell*> Neighbors;
 	Neighbors.Empty();
 	
-	for (const FVector2f& Offset : DIRECTION_OFFSETS)
+	for (int DirectionIndex = 0; DirectionIndex < SimParameters.Anisotropy; ++DirectionIndex)
 	{
-		if (FTCCell* Node = Field.GetDataAt(Coords, Offset))
+		if (FTCCell* Node = Field.GetDataAt(Coords, DIRECTION_OFFSETS[DirectionIndex]))
 		{
 			Neighbors.Push(Node);
 		}
