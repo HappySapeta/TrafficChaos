@@ -20,6 +20,12 @@ struct FTCSocialForceParameters
 	
 	UPROPERTY(EditAnywhere)
 	float AvoidanceStrength = 1.0f;
+	
+	UPROPERTY(EditAnywhere)
+	bool bEnableTurningLimit = false;
+	
+	UPROPERTY(EditAnywhere, meta = (EditCondition = "bEnableTurningLimit", EditConditionHides = true))
+	float MaxTurnAngle = 90.0f;
 };
 
 class FTCSocialForces
@@ -59,8 +65,7 @@ public:
 		{
 			const float OrderTerm = OtherVelocity.Length() * DeltaTime;
 			const float SquareRootTerm = VecToOther.Length() + (VecToOther - OrderTerm * OtherVelocity.GetSafeNormal()).Length();
-			check(FMath::Square(SquareRootTerm) - FMath::Square(OrderTerm) >= 0)
-			return 0.5f * FMath::Sqrt(FMath::Square(SquareRootTerm) - FMath::Square(OrderTerm));
+			return 0.5f * FMath::Sqrt(FMath::Max(FMath::Square(SquareRootTerm) - FMath::Square(OrderTerm)));
 		};
 		
 		const FVector2f VecToOther = OtherPosition - CurrentPosition;

@@ -53,6 +53,7 @@ private:
 	float GetFiniteDifferenceApproximation(const FVector2f& Coords, const int GroupID);
 	FTCCheapestNeighbor GetCheapestNeighbor(const FVector2f& Coords, EDirectionIndex First, EDirectionIndex Second, int GroupID);
 	TArray<FTCCell*> GetNeighbors(const FVector2f& Coords);
+	float GetSocialForceInfluence(const FVector2f& DesiredDirection, const FVector2f& Force);
 
 private:
 	

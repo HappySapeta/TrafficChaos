@@ -97,6 +97,11 @@ void ASimulationActor::DrawDebugGraphics(const float DeltaSeconds)
 	{
 		for (const FTCEntity& Entity : Entities)
 		{
+			if (!Simulator.GetFieldData().IsValidWorldPosition(Entity.Position))
+			{
+				continue;
+			}
+			
 			const FVector Position = {Entity.Position.X, Entity.Position.Y, 0.0f};
 			DrawDebugSphere(World, Position, 25.0f, 10, EntityColors[Entity.GroupID]);
 			if (bDrawTraces)
