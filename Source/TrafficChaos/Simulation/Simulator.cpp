@@ -170,22 +170,63 @@ void TCSimulator::UpdateDensityAndVelocityField(const TArray<FTCEntity>& Entitie
 	
 	for(const FTCEntity& Entity : Entities)
 	{
-		if(!Field.IsValidWorldPosition(Entity.Position))
+		const FVector2f& EntityPosition = Entity.Position;
+		const FVector2f& EntityVelocity = Entity.Velocity;
+		if(!Field.IsValidWorldPosition(EntityPosition))
 		{
 			continue;
 		}
 		
-		const FVector2f Coords = Field.WorldToGrid(Entity.Position);
-		if(FTCCell* ClosestCell = Field.GetDataAt(Coords)) // A
+#ifdef USE_DENSITY_OPTIMIZATION
+		const FVector2f EntityPreciseCoords = Field.WorldToGridCentered(EntityPosition);
+		const FVector2f ClosestCellCenterCoords = {FMath::RoundToInt(EntityPreciseCoords.X) - 0.5f, FMath::RoundToInt(EntityPreciseCoords.Y) - 0.5f};
+		
+		const FVector2f Delta = EntityPreciseCoords - ClosestCellCenterCoords;
+		
+		if(FTCCell* SouthEastCell = Field.GetDataAt(ClosestCellCenterCoords, D_SOUTH_EAST)) // C
 		{
-			ClosestCell->Density += 1; // TODO : Overflow possibility.
-			ClosestCell->Velocity += Entity.Velocity;
+			const float DensityContribution = FMath::Pow(std::min(Delta.X, Delta.Y), SimParameters.DensityExponent);
+			SouthEastCell->Density += std::max(DensityContribution, static_cast<float>(SimParameters.MinDensity));
+			SouthEastCell->Velocity += DensityContribution * EntityVelocity;
 		}
+
+		if(FTCCell* EastCell = Field.GetDataAt(ClosestCellCenterCoords, D_EAST)) // D
+		{
+			const float DensityContribution = FMath::Pow(std::min(Delta.X, 1 - Delta.Y), SimParameters.DensityExponent);
+			EastCell->Density += std::min(DensityContribution, static_cast<float>(SimParameters.MinDensity));
+			EastCell->Velocity += DensityContribution * EntityVelocity;
+		}
+
+		if(FTCCell* ClosestCell = Field.GetDataAt(ClosestCellCenterCoords)) // A
+		{
+			const float DensityContribution = FMath::Pow(std::min(1 - Delta.X, 1 - Delta.Y), SimParameters.DensityExponent);
+			ClosestCell->Density += std::min(DensityContribution, static_cast<float>(SimParameters.MinDensity));
+			ClosestCell->Velocity += DensityContribution * EntityVelocity;
+		}
+
+		if(FTCCell* SouthCell = Field.GetDataAt(ClosestCellCenterCoords, D_SOUTH)) // B
+		{
+			const float DensityContribution = FMath::Pow(std::min(1 - Delta.X, Delta.Y), SimParameters.DensityExponent);
+			SouthCell->Density += std::min(DensityContribution, static_cast<float>(SimParameters.MinDensity));
+			SouthCell->Velocity += DensityContribution * EntityVelocity;
+		}
+#endif
+#ifndef USE_DENSITY_OPTIMIZATION
+		const FVector2f Coords = Field.WorldToGrid(EntityPosition);
+		if(FTCCell* ClosestCell = Field.GetDataAt(Coords))
+		{
+			if (ClosestCell->Density < TNumericLimits<uint8>::Max())
+			{
+				ClosestCell->Density = FMath::Clamp(ClosestCell->Density + 1, SimParameters.MinDensity, SimParameters.MaxDensity);
+			}
+			ClosestCell->Velocity += EntityVelocity;
+		}
+#endif
 	}
 
 	const auto CalcAverageVelocity = [](FTCCell* Cell, const FVector2f& Coords) -> void
 	{
-		if(Cell->Density != 0.0f)
+		if(Cell->Density != 0)
 		{
 			Cell->Velocity /= Cell->Density;
 		}
