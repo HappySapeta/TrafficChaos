@@ -139,15 +139,23 @@ void TCSimulator::Solve(const int GroupID)
 		FTCCell* Current = Candidates.First();
 		Candidates.PopFirst();
 		
-		const TArray<FTCCell*> Neighbors = GetNeighbors(Current->Coords);
-		for (FTCCell* Neighbor : Neighbors)
+		const TArray<FTCNeighbor> Neighbors = GetNeighbors(Current->Coords);
+		for (const auto& [Neighbor, NeighborDirection] : Neighbors)
 		{
 			if (Knowns.Contains(Neighbor))
 			{
 				continue;
 			}
 			
-			const float NewPotential = GetFiniteDifferenceApproximation(Neighbor->Coords, GroupID);
+			float NewPotential;
+			if (SimParameters.bUseFiniteDifferenceApproximation)
+			{
+				NewPotential = GetFiniteDifferenceApproximation(Neighbor->Coords, GroupID);
+			}
+			else
+			{
+				NewPotential = Current->Potential[GroupID] + Current->CostField[NeighborDirection];
+			}
 			if(NewPotential < Neighbor->Potential[GroupID])
 			{
 				Neighbor->Potential[GroupID] = NewPotential;
@@ -210,8 +218,7 @@ void TCSimulator::UpdateDensityAndVelocityField(const TArray<FTCEntity>& Entitie
 			SouthCell->Density += std::min(DensityContribution, static_cast<float>(SimParameters.MinDensity));
 			SouthCell->Velocity += DensityContribution * EntityVelocity;
 		}
-#endif
-#ifdef USE_DENSITY_OPTIMIZATION
+#else 
 		const FVector2f Coords = Field.WorldToGrid(EntityPosition);
 		if(FTCCell* ClosestCell = Field.GetDataAt(Coords))
 		{
@@ -290,7 +297,7 @@ void TCSimulator::UpdateCostField()
 			const float Discomfort = NeighborCell->Discomfort;
 			if(SpeedField != 0)
 			{
-				Cell->CostField[DirectionIndex] = Cell->Density * SimParameters.DensityConstant + (SimParameters.PathCostConstant * SpeedField + SimParameters.TimeCostConstant + SimParameters.DiscomfortConstant * Discomfort) / SpeedField;
+				Cell->CostField[DirectionIndex] = (Cell->Density * SimParameters.DensityConstant) + ((SimParameters.PathCostConstant * SpeedField) + (SimParameters.TimeCostConstant) + (SimParameters.DiscomfortConstant * Discomfort)) / SpeedField;
 			}
 			else
 			{
@@ -406,16 +413,15 @@ float TCSimulator::GetFiniteDifferenceApproximation(const FVector2f& Coords, con
 	return FMath::Min(PhiX + Cx, PhiY + Cy);
 }
 
-TArray<FTCCell*> TCSimulator::GetNeighbors(const FVector2f& Coords)
+TArray<FTCNeighbor> TCSimulator::GetNeighbors(const FVector2f& Coords)
 {
-	static TArray<FTCCell*> Neighbors;
-	Neighbors.Empty();
+	TArray<FTCNeighbor> Neighbors;
 	
 	for (int DirectionIndex = 0; DirectionIndex < SimParameters.Anisotropy; ++DirectionIndex)
 	{
 		if (FTCCell* Node = Field.GetDataAt(Coords, DIRECTION_OFFSETS[DirectionIndex]))
 		{
-			Neighbors.Push(Node);
+			Neighbors.Push({Node, static_cast<EDirectionIndex>(DirectionIndex)});
 		}
 	}
 	

@@ -63,11 +63,10 @@ struct FTCEntity
 
 struct FTCCell
 {
-#ifndef USE_DENSITY_OPTIMIZATION
-	float Density;
-#endif
 #ifdef USE_DENSITY_OPTIMIZATION
 	uint8 Density;
+#else
+	float Density;
 #endif
 	
 	float Discomfort;
@@ -79,6 +78,12 @@ struct FTCCell
 	TArray<float> Potential;
 	TArray<FVector2f> DesiredVelocity;
 	TArray<TStaticArray<float, NUM_DIRECTIONS>> PotentialGradient;
+};
+
+struct FTCNeighbor
+{
+	FTCCell* Cell;
+	EDirectionIndex DirectionIndex;
 };
 
 struct FTCCheapestNeighbor
@@ -110,10 +115,10 @@ struct FTCSimulationParameters
 	float MinTopoSpeed = 10;
 	
 	UPROPERTY(EditAnywhere)
-	uint8 MinDensity = 0;
+	float MinDensity = 0;
 	
 	UPROPERTY(EditAnywhere)
-	uint8 MaxDensity = 5;
+	float MaxDensity = 5;
 	
 	UPROPERTY(EditAnywhere)
 	float DensityExponent = 1;
@@ -137,5 +142,8 @@ struct FTCSimulationParameters
 	float DensityConstant = 1;
 	
 	UPROPERTY(EditAnywhere)
-	TEnumAsByte<ETCAnisotropy> Anisotropy = ETCAnisotropy::FOUR_WAY; 
+	TEnumAsByte<ETCAnisotropy> Anisotropy = ETCAnisotropy::FOUR_WAY;
+	
+	UPROPERTY(EditAnywhere)
+	bool bUseFiniteDifferenceApproximation = true;
 };
