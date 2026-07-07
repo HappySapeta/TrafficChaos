@@ -114,14 +114,14 @@ void ASimulationActor::DrawDebugGraphics(const float DeltaSeconds)
 	// Debug DensityField.
 	if (bDrawDensityField)
 	{
-		const auto DrawDensities = [this, World, Field](const FTCCell* Cell, const FVector2f& Coords)
+		const auto DrawDensities = [this, World, Field, DeltaSeconds](const FTCCell* Cell, const FVector2f& Coords)
 		{
-			if (Cell->Density == 0)
+			if (Cell->ByteDensity == 0)
 			{
 				return;
 			}
 			
-			const float NormDensity = static_cast<float>(Cell->Density) / SimParameters.MaxDensity;
+			const float NormDensity = (Cell->ByteDensity - SimParameters.MinDensity) / (SimParameters.MaxDensity - SimParameters.MinDensity); 
 			const float DebugBoxExtent = Field.GetCellSize();
 			const FVector2f WorldCoords = Field.GridToWorld(Coords);
 			const FLinearColor DebugColor = FLinearColor::LerpUsingHSV(FLinearColor{1.0f, 1.0f, 1.0f, 0.1f},
@@ -131,6 +131,10 @@ void ASimulationActor::DrawDebugGraphics(const float DeltaSeconds)
 			const FVector BoxMin = {WorldCoords.X, WorldCoords.Y, 0};
 			const FVector BoxMax = {WorldCoords.X + DebugBoxExtent, WorldCoords.Y + DebugBoxExtent, DebugBoxExtent};
 			DrawDebugSolidBox(World, FBox(BoxMin, BoxMax), DebugColor.ToFColor(false));
+			
+			const FString String = FString::Printf(TEXT("%d"), Cell->ByteDensity);
+			const FVector StringLocation = {WorldCoords.X + DebugBoxExtent / 2, WorldCoords.Y + DebugBoxExtent / 2, 0.0f}; 
+			DrawDebugString(World, StringLocation , String, this, FColor::White, DeltaSeconds);
 		};
 	
 		Field.ForEachCellPerform(DrawDensities);

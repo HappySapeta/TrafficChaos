@@ -63,11 +63,8 @@ struct FTCEntity
 
 struct FTCCell
 {
-#ifdef USE_DENSITY_OPTIMIZATION
-	uint8 Density;
-#else
+	uint8 ByteDensity;
 	float Density;
-#endif
 	
 	float Discomfort;
 	FVector2f Velocity;
@@ -146,4 +143,7 @@ struct FTCSimulationParameters
 	
 	UPROPERTY(EditAnywhere)
 	bool bUseFiniteDifferenceApproximation = true;
+	
+	UPROPERTY(EditAnywhere)
+	bool bUseDensityOptimization = true;
 };
