@@ -101,13 +101,13 @@ void TCSimulator::Update(const TArray<FTCEntity>& Entities, const float DeltaSec
 	for (int GroupID = 0; GroupID < NumGroups; ++GroupID)
 	{
 		UpdateCostField();
-		Solve(GroupID);
+		SolveBFS(GroupID);
 		UpdatePotentialGradient(GroupID);
 		UpdateDesiredVelocityField(GroupID);
 	}
 }
 
-void TCSimulator::Solve(const int GroupID)
+void TCSimulator::SolveBFS(const int GroupID)
 {
 	check(Goals.Contains(GroupID));
 	
@@ -165,6 +165,80 @@ void TCSimulator::Solve(const int GroupID)
 		
 		Knowns.Add(Current);
 	}
+}
+
+void TCSimulator::SolveFM(const int GroupID)
+{
+	check(Goals.Contains(GroupID));
+	
+	const FVector2f GoalCoords = Field.WorldToGrid(Goals[GroupID]);
+	checkf(Field.IsValidGridCoordinate(GoalCoords), TEXT("Invalid coordinates for goal."));
+	
+	FTCCell* GoalCell = Field.GetDataAt(GoalCoords);
+	
+	Knowns.Empty();
+	Unknowns.Empty();
+	Candidates.Empty();
+
+	const auto InitiallizePotentials = [this, GoalCell, GroupID](FTCCell* Cell, const FVector2f& Coords)->void
+	{
+		if(Cell != GoalCell)
+		{
+			Cell->Potential[GroupID] = MAX_COST;
+			Unknowns.Push(Cell);
+		}
+		else
+		{
+			Cell->Potential[GroupID] = 0.0f;
+			Knowns.Push(Cell);
+		}
+	};
+	Field.ForEachCellPerform(InitiallizePotentials);
+	
+	for(int Index = 0; Index < Unknowns.Num(); ++Index)
+	{
+		FTCCell* Cell = Unknowns[Index];
+		
+		float& CurrentPotential = Cell->Potential[GroupID];
+		const float NewPotential = GetFiniteDifferenceApproximation(Cell->Coords, GroupID);
+		if(NewPotential < CurrentPotential)
+		{
+			CurrentPotential = NewPotential;
+			Unknowns.RemoveSwap(Cell);
+			CandidatesHeap.HeapPush(Cell, FTCMostOptimalNode());
+		}
+	}
+
+	int Count = 0;
+	while(!Candidates.IsEmpty())
+	{
+		FTCCell* Cell;
+		CandidatesHeap.HeapPop(Cell, FTCMostOptimalNode());
+
+		++Count;
+		
+		Knowns.Push(Cell);
+
+		for(auto& [Neighbor, NeighborDirection] : GetNeighbors(Cell->Coords))
+		{
+			if(Knowns.Contains(Neighbor))
+			{
+				continue;
+			}
+
+			float& CurrentPotential = Neighbor->Potential[GroupID];
+			const float NewPotential = GetFiniteDifferenceApproximation(Neighbor->Coords, GroupID);
+			if(NewPotential < CurrentPotential)
+			{
+				CurrentPotential = NewPotential;
+				
+				Unknowns.RemoveSwap(Neighbor);
+				CandidatesHeap.HeapPush(Neighbor, FTCMostOptimalNode());
+			}
+		}
+	}
+	
+	UE_LOG(LogTemp, Warning, TEXT("Solved : %d"), Count);
 }
 
 void TCSimulator::UpdateDensityAndVelocityField(const TArray<FTCEntity>& Entities)

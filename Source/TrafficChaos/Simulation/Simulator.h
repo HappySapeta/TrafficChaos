@@ -44,7 +44,8 @@ public:
 
 private:
 	
-	void Solve(const int GroupID);
+	void SolveBFS(const int GroupID);
+	void SolveFM(int GroupID);
 	void UpdateDensityAndVelocityField(const TArray<FTCEntity>& Entities);
 	void UpdateSpeedField();
 	void UpdateCostField();
@@ -61,7 +62,9 @@ private:
 	
 	TMap<int, FVector2f> Goals;
 	TArray<FTCCell*> Knowns;
+	TArray<FTCCell*> Unknowns;
 	TDeque<FTCCell*> Candidates;
+	TArray<FTCCell*> CandidatesHeap;
 	
 	FTCSimulationParameters SimParameters;
 	FTCSocialForceParameters PedParameters;
