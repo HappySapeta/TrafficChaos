@@ -101,7 +101,15 @@ void TCSimulator::Update(const TArray<FTCEntity>& Entities, const float DeltaSec
 	for (int GroupID = 0; GroupID < NumGroups; ++GroupID)
 	{
 		UpdateCostField();
-		SolveBFS(GroupID);
+		if (SimParameters.bUseBFS)
+		{
+			SolveBFS(GroupID);
+		}
+		else
+		{
+			SolveFM(GroupID);
+		}
+		
 		UpdatePotentialGradient(GroupID);
 		UpdateDesiredVelocityField(GroupID);
 	}
@@ -176,6 +184,11 @@ void TCSimulator::SolveFM(const int GroupID)
 	
 	FTCCell* GoalCell = Field.GetDataAt(GoalCoords);
 	
+	const auto LowestPotentialOnTop = [GroupID](const FTCCell& Left, const FTCCell& Right) -> bool
+	{
+		return Left.Potential[GroupID] < Right.Potential[GroupID];
+	};
+	
 	Knowns.Empty();
 	Unknowns.Empty();
 	Candidates.Empty();
@@ -199,23 +212,20 @@ void TCSimulator::SolveFM(const int GroupID)
 	{
 		FTCCell* Cell = Unknowns[Index];
 		
-		float& CurrentPotential = Cell->Potential[GroupID];
+		const float CurrentPotential = Cell->Potential[GroupID];
 		const float NewPotential = GetFiniteDifferenceApproximation(Cell->Coords, GroupID);
 		if(NewPotential < CurrentPotential)
 		{
-			CurrentPotential = NewPotential;
+			Cell->Potential[GroupID] = NewPotential;
+			CandidatesHeap.HeapPush(Cell, LowestPotentialOnTop);
 			Unknowns.RemoveSwap(Cell);
-			CandidatesHeap.HeapPush(Cell, FTCMostOptimalNode());
 		}
 	}
-
-	int Count = 0;
+	
 	while(!Candidates.IsEmpty())
 	{
 		FTCCell* Cell;
-		CandidatesHeap.HeapPop(Cell, FTCMostOptimalNode());
-
-		++Count;
+		CandidatesHeap.HeapPop(Cell, LowestPotentialOnTop);
 		
 		Knowns.Push(Cell);
 
@@ -231,14 +241,10 @@ void TCSimulator::SolveFM(const int GroupID)
 			if(NewPotential < CurrentPotential)
 			{
 				CurrentPotential = NewPotential;
-				
-				Unknowns.RemoveSwap(Neighbor);
-				CandidatesHeap.HeapPush(Neighbor, FTCMostOptimalNode());
+				CandidatesHeap.HeapPush(Neighbor, LowestPotentialOnTop);
 			}
 		}
 	}
-	
-	UE_LOG(LogTemp, Warning, TEXT("Solved : %d"), Count);
 }
 
 void TCSimulator::UpdateDensityAndVelocityField(const TArray<FTCEntity>& Entities)
@@ -471,11 +477,6 @@ float TCSimulator::GetFiniteDifferenceApproximation(const FVector2f& Coords, con
 	if(PhiY == MAX_COST && PhiX < MAX_COST)
 	{
 		return Cx + PhiX;
-	}
-	
-	if (PhiX == MAX_COST && PhiY == MAX_COST)
-	{
-		return MAX_COST;
 	}
 	
 	const float QuadraticCoeffA = Cy + Cx;

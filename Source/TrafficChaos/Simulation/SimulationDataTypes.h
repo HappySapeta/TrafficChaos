@@ -93,14 +93,6 @@ struct FTCCheapestNeighbor
 	}
 };
 
-struct FTCMostOptimalNode
-{
-	bool operator()(const FTCCell& Left, const FTCCell& Right) const
-	{
-		return false;
-	}
-};
-
 UENUM()
 enum ETCAnisotropy : uint8
 {
@@ -154,4 +146,7 @@ struct FTCSimulationParameters
 	
 	UPROPERTY(EditAnywhere)
 	bool bUseDensityOptimization = true;
+	
+	UPROPERTY(EditAnywhere)
+	bool bUseBFS = true;
 };
