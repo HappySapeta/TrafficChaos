@@ -98,10 +98,10 @@ void TCSimulator::Update(const TArray<FTCEntity>& Entities, const float DeltaSec
 {
 	UpdateDensityAndVelocityField(Entities);
 	UpdateSpeedField();
+	UpdateCostField();
 	
 	for (int GroupID = 0; GroupID < NumGroups; ++GroupID)
 	{
-		UpdateCostField();
 		if (SimParameters.bUseBFS)
 		{
 			SolveBFS(GroupID);
@@ -315,18 +315,18 @@ void TCSimulator::UpdateDensityAndVelocityField(const TArray<FTCEntity>& Entitie
 				Cell->Velocity += EntityVelocity;
 			}
 			
-			for (int DirectionIndex = 0; DirectionIndex < SimParameters.Anisotropy; ++DirectionIndex)
-			{
-				const FVector2f& Offset = DIRECTION_OFFSETS[DirectionIndex];
-				if (FTCCell* Cell = Field.GetDataAt(Field.WorldToGrid(EntityPosition), Offset))
-				{
-					if (Cell->ByteDensity < TNumericLimits<uint8>::Max())
-					{
-						Cell->ByteDensity = FMath::Clamp(Cell->ByteDensity + 1, SimParameters.DensityRange.GetLowerBoundValue(), SimParameters.DensityRange.GetUpperBoundValue());
-					}
-					Cell->Velocity += EntityVelocity;
-				}
-			}
+			//for (int DirectionIndex = 0; DirectionIndex < SimParameters.Anisotropy; ++DirectionIndex)
+			//{
+			//	const FVector2f& Offset = DIRECTION_OFFSETS[DirectionIndex];
+			//	if (FTCCell* Cell = Field.GetDataAt(Field.WorldToGrid(EntityPosition), Offset))
+			//	{
+			//		if (Cell->ByteDensity < TNumericLimits<uint8>::Max())
+			//		{
+			//			Cell->ByteDensity = FMath::Clamp(Cell->ByteDensity + 1, SimParameters.DensityRange.GetLowerBoundValue(), SimParameters.DensityRange.GetUpperBoundValue());
+			//		}
+			//		Cell->Velocity += EntityVelocity;
+			//	}
+			//}
 		}
 	}
 
@@ -415,11 +415,11 @@ void TCSimulator::UpdateCostField()
 			{
 				if (SimParameters.bUseDensityOptimization)
 				{
-					Cell->CostField[DirectionIndex] = (Cell->ByteDensity * SimParameters.DensityConstant) + ((SimParameters.PathCostConstant * SpeedField) + (SimParameters.TimeCostConstant) + (SimParameters.DiscomfortConstant * Discomfort)) / SpeedField;
+					Cell->CostField[DirectionIndex] = (NeighborCell->ByteDensity * SimParameters.DensityConstant) + ((SimParameters.PathCostConstant * SpeedField) + (SimParameters.TimeCostConstant) + (SimParameters.DiscomfortConstant * Discomfort)) / SpeedField;
 				}
 				else
 				{
-					Cell->CostField[DirectionIndex] = (Cell->Density * SimParameters.DensityConstant) + ((SimParameters.PathCostConstant * SpeedField) + (SimParameters.TimeCostConstant) + (SimParameters.DiscomfortConstant * Discomfort)) / SpeedField;
+					Cell->CostField[DirectionIndex] = (NeighborCell->Density * SimParameters.DensityConstant) + ((SimParameters.PathCostConstant * SpeedField) + (SimParameters.TimeCostConstant) + (SimParameters.DiscomfortConstant * Discomfort)) / SpeedField;
 				}
 			}
 			else
