@@ -306,6 +306,15 @@ void TCSimulator::UpdateDensityAndVelocityField(const TArray<FTCEntity>& Entitie
 		}
 		else
 		{
+			if (FTCCell* Cell = Field.GetDataAt(Field.WorldToGrid(EntityPosition)))
+			{
+				if (Cell->ByteDensity < TNumericLimits<uint8>::Max())
+				{
+					Cell->ByteDensity = FMath::Clamp(Cell->ByteDensity + 1, SimParameters.DensityRange.GetLowerBoundValue(), SimParameters.DensityRange.GetUpperBoundValue());
+				}
+				Cell->Velocity += EntityVelocity;
+			}
+			
 			for (int DirectionIndex = 0; DirectionIndex < SimParameters.Anisotropy; ++DirectionIndex)
 			{
 				const FVector2f& Offset = DIRECTION_OFFSETS[DirectionIndex];
