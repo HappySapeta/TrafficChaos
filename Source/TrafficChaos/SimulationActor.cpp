@@ -121,7 +121,7 @@ void ASimulationActor::DrawDebugGraphics(const float DeltaSeconds)
 				return;
 			}
 			
-			const float NormDensity = (Cell->ByteDensity - SimParameters.MinDensity) / (SimParameters.MaxDensity - SimParameters.MinDensity); 
+			const float NormDensity = (Cell->ByteDensity - SimParameters.DensityRange.GetLowerBoundValue()) / (SimParameters.DensityRange.GetUpperBoundValue() - SimParameters.DensityRange.GetLowerBoundValue()); 
 			const float DebugBoxExtent = Field.GetCellSize();
 			const FVector2f WorldCoords = Field.GridToWorld(Coords);
 			const FLinearColor DebugColor = FLinearColor::LerpUsingHSV(FLinearColor{1.0f, 1.0f, 1.0f, 0.1f},

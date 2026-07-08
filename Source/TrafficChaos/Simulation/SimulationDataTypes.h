@@ -106,25 +106,13 @@ struct FTCSimulationParameters
 	GENERATED_BODY()
 	
 	UPROPERTY(EditAnywhere)
-	float MaxTopoSpeed = 30;
+	FFloatRange DensityRange = FFloatRange(0.2, 2.0);
 	
 	UPROPERTY(EditAnywhere)
-	float MinTopoSpeed = 10;
+	int VelocityLookahead = 1;
 	
 	UPROPERTY(EditAnywhere)
-	float MinDensity = 0;
-	
-	UPROPERTY(EditAnywhere)
-	float MaxDensity = 5;
-	
-	UPROPERTY(EditAnywhere)
-	float DensityExponent = 1;
-	
-	UPROPERTY(EditAnywhere)
-	int VelocityLookupOffset = 3;
-	
-	UPROPERTY(EditAnywhere)
-	int DensityLookupOffset = 2;
+	int DensityLookahead = 1;
 	
 	UPROPERTY(EditAnywhere)
 	float PathCostConstant = 1;
@@ -135,18 +123,18 @@ struct FTCSimulationParameters
 	UPROPERTY(EditAnywhere)
 	float DiscomfortConstant = 1;
 	
-	UPROPERTY(EditAnywhere)
+	UPROPERTY(EditAnywhere, Category = "Test")
 	float DensityConstant = 1;
 	
-	UPROPERTY(EditAnywhere)
+	UPROPERTY(EditAnywhere, Category = "Test")
 	TEnumAsByte<ETCAnisotropy> Anisotropy = ETCAnisotropy::FOUR_WAY;
 	
-	UPROPERTY(EditAnywhere)
+	UPROPERTY(EditAnywhere, Category = "Test")
 	bool bUseFiniteDifferenceApproximation = true;
 	
-	UPROPERTY(EditAnywhere)
+	UPROPERTY(EditAnywhere, Category = "Test")
 	bool bUseDensityOptimization = true;
 	
-	UPROPERTY(EditAnywhere)
+	UPROPERTY(EditAnywhere, Category = "Test")
 	bool bUseBFS = true;
 };
