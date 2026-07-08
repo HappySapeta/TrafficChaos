@@ -17,6 +17,7 @@ void TCSimulator::Initialize(const float Resolution, const float WorldSize, cons
 	{
 		Cell->Coords = Coords;
 		Cell->ByteDensity = 0;
+		Cell->Density = 0;
 		Cell->Discomfort = 0;
 		Cell->DesiredVelocity.Init({}, NewNumGroups);
 		Cell->Potential.Init({}, NewNumGroups);
@@ -252,6 +253,7 @@ void TCSimulator::UpdateDensityAndVelocityField(const TArray<FTCEntity>& Entitie
 	const auto ResetCellDensityAndVelocties = [](FTCCell* Cell, const FVector2f& Coords) -> void
 	{
 		Cell->ByteDensity = 0;
+		Cell->Density = 0;
 		Cell->Velocity = {0, 0};
 	};
 	Field.ForEachCellPerform(ResetCellDensityAndVelocties);
@@ -304,23 +306,36 @@ void TCSimulator::UpdateDensityAndVelocityField(const TArray<FTCEntity>& Entitie
 		}
 		else
 		{
-			const FVector2f Coords = Field.WorldToGrid(EntityPosition);
-			if(FTCCell* ClosestCell = Field.GetDataAt(Coords))
+			for (int DirectionIndex = 0; DirectionIndex < SimParameters.Anisotropy; ++DirectionIndex)
 			{
-				if (ClosestCell->ByteDensity < TNumericLimits<uint8>::Max())
+				const FVector2f& Offset = DIRECTION_OFFSETS[DirectionIndex];
+				if (FTCCell* Cell = Field.GetDataAt(Field.WorldToGrid(EntityPosition), Offset))
 				{
-					ClosestCell->ByteDensity = FMath::Clamp(ClosestCell->ByteDensity + 1, SimParameters.DensityRange.GetLowerBoundValue(), SimParameters.DensityRange.GetUpperBoundValue());
+					if (Cell->ByteDensity < TNumericLimits<uint8>::Max())
+					{
+						Cell->ByteDensity = FMath::Clamp(Cell->ByteDensity + 1, SimParameters.DensityRange.GetLowerBoundValue(), SimParameters.DensityRange.GetUpperBoundValue());
+					}
+					Cell->Velocity += EntityVelocity;
 				}
-				ClosestCell->Velocity += EntityVelocity;
 			}
 		}
 	}
 
-	const auto CalcAverageVelocity = [](FTCCell* Cell, const FVector2f& Coords) -> void
+	const auto CalcAverageVelocity = [this](FTCCell* Cell, const FVector2f& Coords) -> void
 	{
-		if(Cell->ByteDensity != 0)
+		if (SimParameters.bUseDensityOptimization)
 		{
-			Cell->Velocity /= Cell->ByteDensity;
+			if(Cell->ByteDensity != 0)
+			{
+				Cell->Velocity /= Cell->ByteDensity;
+			}
+		}
+		else
+		{
+			if(Cell->Density != 0)
+			{
+				Cell->Velocity /= Cell->Density;
+			}
 		}
 	};
 	Field.ForEachCellPerform(CalcAverageVelocity);
@@ -389,11 +404,18 @@ void TCSimulator::UpdateCostField()
 			const float Discomfort = NeighborCell->Discomfort;
 			if(SpeedField != 0)
 			{
-				Cell->CostField[DirectionIndex] = (Cell->ByteDensity * SimParameters.DensityConstant) + ((SimParameters.PathCostConstant * SpeedField) + (SimParameters.TimeCostConstant) + (SimParameters.DiscomfortConstant * Discomfort)) / SpeedField;
+				if (SimParameters.bUseDensityOptimization)
+				{
+					Cell->CostField[DirectionIndex] = (Cell->ByteDensity * SimParameters.DensityConstant) + ((SimParameters.PathCostConstant * SpeedField) + (SimParameters.TimeCostConstant) + (SimParameters.DiscomfortConstant * Discomfort)) / SpeedField;
+				}
+				else
+				{
+					Cell->CostField[DirectionIndex] = (Cell->Density * SimParameters.DensityConstant) + ((SimParameters.PathCostConstant * SpeedField) + (SimParameters.TimeCostConstant) + (SimParameters.DiscomfortConstant * Discomfort)) / SpeedField;
+				}
 			}
 			else
 			{
-				Cell->CostField[DirectionIndex] = MAX_COST;
+ 				Cell->CostField[DirectionIndex] = MAX_COST;
 			}
 		}
 	};
@@ -477,6 +499,11 @@ float TCSimulator::GetFiniteDifferenceApproximation(const FVector2f& Coords, con
 	if(PhiY == MAX_COST && PhiX < MAX_COST)
 	{
 		return Cx + PhiX;
+	}
+	
+	if(PhiY == MAX_COST && PhiX == MAX_COST)
+	{
+		return MAX_COST;
 	}
 	
 	const float QuadraticCoeffA = Cy + Cx;
