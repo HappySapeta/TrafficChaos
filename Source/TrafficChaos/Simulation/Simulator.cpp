@@ -44,6 +44,12 @@ void TCSimulator::CrowdAdvection(TArray<FTCEntity>& Entities, const float TimeSt
 	
 	for (int EntityIndex = 0; EntityIndex < Entities.Num(); ++EntityIndex)
 	{
+		if (Entities[EntityIndex].bUseOverrideVelocity)
+		{
+			Entities[EntityIndex].Position += Entities[EntityIndex].OverrideVelocity * TimeStep;
+			continue;
+		}
+		
 		FVector2f Force = FVector2f::ZeroVector;
 		
 		const FVector2f& CurrentVelocity = Entities[EntityIndex].Velocity;
@@ -270,9 +276,7 @@ void TCSimulator::UpdateDensityAndVelocityField(const TArray<FTCEntity>& Entitie
 		if (!SimParameters.bUseDensityOptimization)
 		{
 			const FVector2f EntityPreciseCoords = Field.WorldToGridCentered(EntityPosition);
-			const FVector2f ClosestCellCenterCoords = {
-				FMath::RoundToInt(EntityPreciseCoords.X) - 0.5f, FMath::RoundToInt(EntityPreciseCoords.Y) - 0.5f
-			};
+			const FVector2f ClosestCellCenterCoords = {FMath::RoundToInt(EntityPreciseCoords.X) - 0.5f, FMath::RoundToInt(EntityPreciseCoords.Y) - 0.5f};
 
 			const FVector2f Delta = EntityPreciseCoords - ClosestCellCenterCoords;
 
@@ -314,19 +318,6 @@ void TCSimulator::UpdateDensityAndVelocityField(const TArray<FTCEntity>& Entitie
 				}
 				Cell->Velocity += EntityVelocity;
 			}
-			
-			//for (int DirectionIndex = 0; DirectionIndex < SimParameters.Anisotropy; ++DirectionIndex)
-			//{
-			//	const FVector2f& Offset = DIRECTION_OFFSETS[DirectionIndex];
-			//	if (FTCCell* Cell = Field.GetDataAt(Field.WorldToGrid(EntityPosition), Offset))
-			//	{
-			//		if (Cell->ByteDensity < TNumericLimits<uint8>::Max())
-			//		{
-			//			Cell->ByteDensity = FMath::Clamp(Cell->ByteDensity + 1, SimParameters.DensityRange.GetLowerBoundValue(), SimParameters.DensityRange.GetUpperBoundValue());
-			//		}
-			//		Cell->Velocity += EntityVelocity;
-			//	}
-			//}
 		}
 	}
 

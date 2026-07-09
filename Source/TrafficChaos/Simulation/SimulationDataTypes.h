@@ -56,9 +56,11 @@ const TArray<EDirectionIndex> CARDINAL_DIRECTIONS
 
 struct FTCEntity
 {
-	FVector2f Position;
-	FVector2f Velocity;
-	int GroupID;
+	FVector2f Position = FVector2f::ZeroVector;
+	FVector2f Velocity = FVector2f::ZeroVector;
+	FVector2f OverrideVelocity = FVector2f::ZeroVector;
+	bool bUseOverrideVelocity = false;
+	int GroupID = 0;
 };
 
 struct FTCCell

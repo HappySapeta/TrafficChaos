@@ -32,6 +32,12 @@ struct FTCSpawnConfiguration
 	
 	UPROPERTY(EditAnywhere, meta = (ClampMin = 0, ClampMax = 100, UIMin = 0, UIMax = 100))
 	int Amount = 1;
+	
+	UPROPERTY(EditAnywhere)
+	FVector2f OverrideVelocity;
+	
+	UPROPERTY(EditAnywhere)
+	bool bUseOverrideVelocity = false;
 };
 
 UCLASS()

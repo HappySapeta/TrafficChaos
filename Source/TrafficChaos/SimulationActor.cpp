@@ -63,8 +63,15 @@ void ASimulationActor::SpawnEntities()
 			{
 				continue;
 			}
+
+			Entities.Push
+			({
+				FVector2f{X, Y}, FVector2f{FVector2f::ZeroVector}, 
+				Configuration.OverrideVelocity,
+				Configuration.bUseOverrideVelocity, 
+				GroupID
+			});
 			
-			Entities.Push({FVector2f{X, Y}, FVector2f{FVector2f::ZeroVector}, GroupID});
 			++NumSpawned;
 		}
 		EntityColors.Push(Configuration.Color);
@@ -133,7 +140,7 @@ void ASimulationActor::DrawDebugGraphics(const float DeltaSeconds)
 			const FVector BoxMax = {WorldCoords.X + DebugBoxExtent, WorldCoords.Y + DebugBoxExtent, DebugBoxExtent};
 			DrawDebugSolidBox(World, FBox(BoxMin, BoxMax), DebugColor.ToFColor(false));
 			
-			const FString String = FString::Printf(TEXT("%f"), Density);
+			const FString String = FString::Printf(TEXT("%.2f"), Density);
 			const FVector StringLocation = {WorldCoords.X + DebugBoxExtent / 2, WorldCoords.Y + DebugBoxExtent / 2, 0.0f}; 
 			DrawDebugString(World, StringLocation , String, this, FColor::White, DeltaSeconds);
 		};
@@ -152,7 +159,7 @@ void ASimulationActor::DrawDebugGraphics(const float DeltaSeconds)
 			const FVector BoxMax = {WorldCoords.X + DebugBoxExtent, WorldCoords.Y + DebugBoxExtent, 100};
 			DrawDebugSolidBox(World, FBox(BoxMin, BoxMax), FColor(255, 255, 255, 10));
 			
-			const FString String = FString::Printf(TEXT("%.2f"), Cell->Potential[DebugGroupID]);
+			const FString String = FString::Printf(TEXT("%.0f"), Cell->Potential[DebugGroupID]);
 			const FVector StringLocation = {WorldCoords.X + DebugBoxExtent / 2, WorldCoords.Y + DebugBoxExtent / 2, 0.0f}; 
 			DrawDebugString(World, StringLocation , String, this, FColor::Red, DeltaSeconds);
 		};
@@ -163,7 +170,7 @@ void ASimulationActor::DrawDebugGraphics(const float DeltaSeconds)
 	// Debug VelocityField.
 	if (bDrawCellVelocityField)
 	{
-		const auto DrawVelocties = [this, World, Field](const FTCCell* Cell, const FVector2f& Coords) -> void
+		const auto DrawVelocties = [this, World, Field, DeltaSeconds](const FTCCell* Cell, const FVector2f& Coords) -> void
 		{
 			if (Cell->Velocity.IsNearlyZero())
 			{
@@ -177,6 +184,12 @@ void ASimulationActor::DrawDebugGraphics(const float DeltaSeconds)
 			const FVector LineEnd = {WorldLocation.X + Direction.X * CellSize / 2, WorldLocation.Y + Direction.Y * CellSize / 2, 0};
 			DrawDebugLine(World, LineStart, LineStart, FColor::Purple, false, -1, 0, 7.0f);
 			DrawDebugLine(World, LineStart, LineEnd, FColor::Purple, false, -1, 0, 2.0f);
+			
+			const float DebugBoxExtent = Field.GetCellSize();
+			const FVector2f WorldCoords = Field.GridToWorld(Coords);
+			const FString String = FString::Printf(TEXT("%.2f"), Cell->Velocity.Length());
+			const FVector StringLocation = {WorldCoords.X + DebugBoxExtent / 2, WorldCoords.Y + DebugBoxExtent / 2, 0.0f}; 
+			DrawDebugString(World, StringLocation , String, this, FColor::Red, DeltaSeconds);
 		};
 		Field.ForEachCellPerform(DrawVelocties);
 	}
