@@ -86,9 +86,17 @@ void ASimulationActor::SpawnEntities()
 void ASimulationActor::Tick(const float DeltaSeconds)
 {
 	Super::Tick(DeltaSeconds);
-	Simulator.Update(Entities, DeltaSeconds);
-	Simulator.CrowdAdvection(Entities, DeltaSeconds);
+	if (bIsUpdateEnabled)
+	{
+		Simulator.Update(Entities, DeltaSeconds);
+		Simulator.CrowdAdvection(Entities, DeltaSeconds);
+	}
 	DrawDebugGraphics(DeltaSeconds);
+}
+
+void ASimulationActor::SetUpdateEnabled(const bool bValue)
+{
+	bIsUpdateEnabled = bValue;
 }
 
 void ASimulationActor::DrawDebugGraphics(const float DeltaSeconds)
@@ -104,6 +112,11 @@ void ASimulationActor::DrawDebugGraphics(const float DeltaSeconds)
 	{
 		for (const FTCEntity& Entity : Entities)
 		{
+			if (EntityColors[Entity.GroupID].A == 0)
+			{
+				continue;
+			}
+			
 			if (!Simulator.GetFieldData().IsValidWorldPosition(Entity.Position))
 			{
 				continue;

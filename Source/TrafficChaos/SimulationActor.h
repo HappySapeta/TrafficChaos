@@ -52,6 +52,9 @@ public:
 	
 	virtual void Tick(const float DeltaSeconds) override;
 	
+	UFUNCTION(BlueprintCallable)
+	void SetUpdateEnabled(bool bValue);
+
 	virtual void PostEditChangeProperty(struct FPropertyChangedEvent& PropertyChangedEvent) override;
 	
 protected:
@@ -107,4 +110,5 @@ private:
 	TCSimulator Simulator;
 	TArray<FTCEntity> Entities;
 	TArray<FColor> EntityColors;
+	bool bIsUpdateEnabled = true;
 };
