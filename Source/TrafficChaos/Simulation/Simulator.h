@@ -49,7 +49,7 @@ private:
 	void UpdateDensityAndVelocityField(const TArray<FTCEntity>& Entities);
 	void UpdateSpeedField();
 	void UpdateCostField();
-	void UpdateCostFieldNew();
+	void UpdateCostFieldNew(int GroupID);
 	void UpdatePotentialGradient(const int GroupID);
 	void UpdateDesiredVelocityField(const int GroupID);
 	float GetFiniteDifferenceApproximation(const FVector2f& Coords, const int GroupID);

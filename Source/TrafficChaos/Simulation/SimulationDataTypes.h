@@ -64,10 +64,10 @@ struct FTCCell
 	FVector2f Velocity;
 	
 	FVector2f Coords;
-	TStaticArray<float, NUM_DIRECTIONS> CostField;
 	
 	TArray<float> Potential;
 	TArray<FVector2f> DesiredVelocity;
+	TArray<TStaticArray<float, NUM_DIRECTIONS>> CostField;
 	TArray<TStaticArray<float, NUM_DIRECTIONS>> PotentialGradient;
 };
 

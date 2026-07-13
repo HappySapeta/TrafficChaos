@@ -20,6 +20,7 @@ void TCSimulator::Initialize(const float Resolution, const float WorldSize, cons
 		Cell->ByteDensity = 0;
 		Cell->Density = 0;
 		Cell->Discomfort = 0;
+		Cell->CostField.Init({}, NewNumGroups);
 		Cell->DesiredVelocity.Init({}, NewNumGroups);
 		Cell->Potential.Init({}, NewNumGroups);
 		Cell->PotentialGradient.Init({}, NewNumGroups);
@@ -104,10 +105,10 @@ void TCSimulator::CrowdAdvection(TArray<FTCEntity>& Entities, const float TimeSt
 void TCSimulator::Update(const TArray<FTCEntity>& Entities, const float DeltaSeconds)
 {
 	UpdateDensityAndVelocityField(Entities);
-	UpdateCostFieldNew();
 	
 	for (int GroupID = 0; GroupID < NumGroups; ++GroupID)
 	{
+		UpdateCostFieldNew(GroupID);
 		if (SimParameters.bUseBFS)
 		{
 			 SolveBFS(GroupID);
@@ -169,7 +170,7 @@ void TCSimulator::SolveBFS(const int GroupID)
 			}
 			else
 			{
-				NewPotential = Current->Potential[GroupID] + Current->CostField[NeighborDirection];
+				NewPotential = Current->Potential[GroupID] + Current->CostField[GroupID][NeighborDirection];
 			}
 			if(NewPotential < Neighbor->Potential[GroupID])
 			{
@@ -368,13 +369,13 @@ void TCSimulator::UpdateDensityAndVelocityField(const TArray<FTCEntity>& Entitie
 	Field.ForEachCellPerform(CalcAverageVelocity);
 }
 
-void TCSimulator::UpdateCostFieldNew()
+void TCSimulator::UpdateCostFieldNew(const int GroupID)
 {
-	const auto CalculateCost = [this](FTCCell* CurrentCell, const FVector2f& Coords)
+	const auto CalculateCost = [this, GroupID](FTCCell* CurrentCell, const FVector2f& Coords)
 	{
 		for(int DirectionIndex = 0; DirectionIndex < SimParameters.Anisotropy; ++DirectionIndex)
 		{
-			CurrentCell->CostField[DirectionIndex] = 0;
+			CurrentCell->CostField[GroupID][DirectionIndex] = 0;
 			if (const FTCCell* NeighborCell = Field.GetDataAt(CurrentCell->Coords, DIRECTION_OFFSETS[DirectionIndex]))
 			{
 				FVector2f NeighborVelocity = FVector2f::ZeroVector;
@@ -392,7 +393,7 @@ void TCSimulator::UpdateCostFieldNew()
 				const float VelocityCost = FMath::Max(-FVector2f::DotProduct(DIRECTION_OFFSETS[DirectionIndex], NeighborVelocity.GetSafeNormal()), 0.1f) * SimParameters.TimeCostConstant;
 				const float DistanceCost = DIRECTION_OFFSETS[DirectionIndex].Length() * SimParameters.PathCostConstant;
 				
-				CurrentCell->CostField[DirectionIndex] = DensityCost + VelocityCost + DistanceCost;
+				CurrentCell->CostField[GroupID][DirectionIndex] = DensityCost + VelocityCost + DistanceCost;
 			}
 		}
 	};
@@ -458,19 +459,19 @@ FTCCheapestNeighbor TCSimulator::GetCheapestNeighbor(const FVector2f& Coords, co
 
 	if(FirstNeighbor && !SecondNeighbor)
 	{
-		return {FirstNeighbor->Potential[GroupID], CurrentCell->CostField[First]};
+		return {FirstNeighbor->Potential[GroupID], CurrentCell->CostField[GroupID][First]};
 	}
 	else if(!FirstNeighbor && SecondNeighbor)
 	{
-		return {SecondNeighbor->Potential[GroupID], CurrentCell->CostField[Second]};
+		return {SecondNeighbor->Potential[GroupID], CurrentCell->CostField[GroupID][Second]};
 	}
 	else if(!FirstNeighbor && !SecondNeighbor)
 	{
 		return {MAX_COST, MAX_COST};
 	}
 
-	const FTCCheapestNeighbor ResultFirst = {FirstNeighbor->Potential[GroupID], CurrentCell->CostField[First]};
-	const FTCCheapestNeighbor ResultSecond = {SecondNeighbor->Potential[GroupID], CurrentCell->CostField[Second]};
+	const FTCCheapestNeighbor ResultFirst = {FirstNeighbor->Potential[GroupID], CurrentCell->CostField[GroupID][First]};
+	const FTCCheapestNeighbor ResultSecond = {SecondNeighbor->Potential[GroupID], CurrentCell->CostField[GroupID][Second]};
 		
 	return ResultFirst.Sum() < ResultSecond.Sum() ? ResultFirst : ResultSecond;
 }
