@@ -183,26 +183,38 @@ void ASimulationActor::DrawDebugGraphics(const float DeltaSeconds)
 	// Debug VelocityField.
 	if (bDrawCellVelocityField)
 	{
-		const auto DrawVelocties = [this, World, Field, DeltaSeconds](const FTCCell* Cell, const FVector2f& Coords) -> void
+		const auto DrawVelocties = [this, World, Field](const FTCCell* Cell, const FVector2f& Coords) -> void
 		{
-			if (Cell->Velocity.IsNearlyZero())
+			if (SimParameters.bUseVelocityOptimization)
 			{
-				return;
+				if (Cell->Direction == EDirectionIndex::NONE)
+				{
+					return;
+				}
+			
+				const float CellSize = Field.GetCellSize(); 
+				const FVector2f WorldLocation = Field.GridToWorld(Coords);
+				const FVector2f Direction = DIRECTION_OFFSETS[Cell->Direction].GetSafeNormal();
+				const FVector LineStart = {WorldLocation.X, WorldLocation.Y, 0};
+				const FVector LineEnd = {WorldLocation.X + Direction.X * CellSize / 2, WorldLocation.Y + Direction.Y * CellSize / 2, 0};
+				DrawDebugLine(World, LineStart, LineStart, FColor::Purple, false, -1, 0, 7.0f);
+				DrawDebugLine(World, LineStart, LineEnd, FColor::Purple, false, -1, 0, 2.0f);
 			}
+			else
+			{
+				if (Cell->Velocity.IsNearlyZero())
+				{
+					return;
+				}
 			
-			const float CellSize = Field.GetCellSize(); 
-			const FVector2f WorldLocation = Field.GridToWorld(Coords);
-			const FVector2f Direction = Cell->Velocity.IsNearlyZero() ? FVector2f{1.0f, 0.0f} : Cell->Velocity.GetSafeNormal();
-			const FVector LineStart = {WorldLocation.X, WorldLocation.Y, 0};
-			const FVector LineEnd = {WorldLocation.X + Direction.X * CellSize / 2, WorldLocation.Y + Direction.Y * CellSize / 2, 0};
-			DrawDebugLine(World, LineStart, LineStart, FColor::Purple, false, -1, 0, 7.0f);
-			DrawDebugLine(World, LineStart, LineEnd, FColor::Purple, false, -1, 0, 2.0f);
-			
-			const float DebugBoxExtent = Field.GetCellSize();
-			const FVector2f WorldCoords = Field.GridToWorld(Coords);
-			const FString String = FString::Printf(TEXT("%.2f"), Cell->Velocity.Length());
-			const FVector StringLocation = {WorldCoords.X + DebugBoxExtent / 2, WorldCoords.Y + DebugBoxExtent / 2, 0.0f}; 
-			DrawDebugString(World, StringLocation , String, this, FColor::Red, DeltaSeconds);
+				const float CellSize = Field.GetCellSize(); 
+				const FVector2f WorldLocation = Field.GridToWorld(Coords);
+				const FVector2f Direction = Cell->Velocity.GetSafeNormal();
+				const FVector LineStart = {WorldLocation.X, WorldLocation.Y, 0};
+				const FVector LineEnd = {WorldLocation.X + Direction.X * CellSize / 2, WorldLocation.Y + Direction.Y * CellSize / 2, 0};
+				DrawDebugLine(World, LineStart, LineStart, FColor::Purple, false, -1, 0, 7.0f);
+				DrawDebugLine(World, LineStart, LineEnd, FColor::Purple, false, -1, 0, 2.0f);
+			}
 		};
 		Field.ForEachCellPerform(DrawVelocties);
 	}

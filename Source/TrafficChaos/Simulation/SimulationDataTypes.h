@@ -6,7 +6,7 @@
 #include "CoreMinimal.h"
 #include "SimulationDataTypes.generated.h"
 
-constexpr int NUM_DIRECTIONS = 8;
+constexpr int NUM_DIRECTIONS = 9;
 
 const FVector2f D_NORTH			{ 0, -1};
 const FVector2f D_NORTH_WEST	{-1, -1};
@@ -16,6 +16,7 @@ const FVector2f D_SOUTH			{ 0, +1};
 const FVector2f D_SOUTH_EAST	{+1, +1};
 const FVector2f D_EAST			{+1,  0};
 const FVector2f D_NORTH_EAST	{+1, -1};
+const FVector2f D_ORIGIN		{ 0,  0};
 
 // North, West, South, EastDIR
 const TStaticArray<FVector2f, NUM_DIRECTIONS> DIRECTION_OFFSETS
@@ -27,7 +28,8 @@ const TStaticArray<FVector2f, NUM_DIRECTIONS> DIRECTION_OFFSETS
 	D_NORTH_WEST,
 	D_SOUTH_WEST,
 	D_SOUTH_EAST,
-	D_NORTH_EAST
+	D_NORTH_EAST,
+	D_ORIGIN
 };
 
 enum EDirectionIndex : uint8
@@ -39,19 +41,8 @@ enum EDirectionIndex : uint8
 	NORTH_WEST,
 	SOUTH_WEST,
 	SOUTH_EAST,
-	NORTH_EAST
-};
-
-const TArray<EDirectionIndex> CARDINAL_DIRECTIONS
-{
-	NORTH,
-	WEST,
-	SOUTH,
-	EAST,
-	NORTH_WEST,
-	SOUTH_WEST,
-	SOUTH_EAST,
-	NORTH_EAST
+	NORTH_EAST,
+	NONE,
 };
 
 struct FTCEntity
@@ -69,7 +60,9 @@ struct FTCCell
 	float Density;
 	
 	float Discomfort;
+	EDirectionIndex Direction;
 	FVector2f Velocity;
+	
 	FVector2f Coords;
 	TStaticArray<float, NUM_DIRECTIONS> CostField;
 	
@@ -138,4 +131,7 @@ struct FTCSimulationParameters
 	
 	UPROPERTY(EditAnywhere, Category = "Test")
 	bool bUseBFS = true;
+	
+	UPROPERTY(EditAnywhere, Category = "Test")
+	bool bUseVelocityOptimization = true;
 };

@@ -260,6 +260,7 @@ void TCSimulator::UpdateDensityAndVelocityField(const TArray<FTCEntity>& Entitie
 	{
 		Cell->ByteDensity = 0;
 		Cell->Density = 0;
+		Cell->Direction = EDirectionIndex::NONE;
 		Cell->Velocity = {0, 0};
 	};
 	Field.ForEachCellPerform(ResetCellDensityAndVelocties);
@@ -316,8 +317,19 @@ void TCSimulator::UpdateDensityAndVelocityField(const TArray<FTCEntity>& Entitie
 				{
 					Cell->ByteDensity = FMath::Clamp(Cell->ByteDensity + 1, SimParameters.DensityRange.GetLowerBoundValue(), SimParameters.DensityRange.GetUpperBoundValue());
 				}
-				Cell->Velocity += EntityVelocity;
-			}
+
+				if (SimParameters.bUseVelocityOptimization)
+				{
+					Cell->Direction = ConvertVectorToDirectionIndex
+					(
+						DIRECTION_OFFSETS[Cell->Direction].GetSafeNormal() + EntityVelocity.GetSafeNormal()
+					);
+				}
+				else
+				{
+					Cell->Velocity += EntityVelocity;
+				}
+			} 
 		}
 	}
 
@@ -327,14 +339,29 @@ void TCSimulator::UpdateDensityAndVelocityField(const TArray<FTCEntity>& Entitie
 		{
 			if(Cell->ByteDensity != 0)
 			{
-				Cell->Velocity /= Cell->ByteDensity;
+				if (SimParameters.bUseVelocityOptimization)
+				{
+					const FVector2f& AvgDirection = DIRECTION_OFFSETS[Cell->Direction] / Cell->ByteDensity;
+					Cell->Direction = ConvertVectorToDirectionIndex(AvgDirection);
+				}
+				else
+				{
+					Cell->Velocity /= Cell->ByteDensity;
+				}
 			}
 		}
 		else
 		{
 			if(Cell->Density != 0)
 			{
-				Cell->Velocity /= Cell->Density;
+				if (SimParameters.bUseVelocityOptimization)
+				{
+					Cell->Direction = ConvertVectorToDirectionIndex(DIRECTION_OFFSETS[Cell->Direction].GetSafeNormal() / Cell->Density);
+				}
+				else
+				{
+					Cell->Velocity /= Cell->Density;
+				}
 			}
 		}
 	};
@@ -350,7 +377,15 @@ void TCSimulator::UpdateCostFieldNew()
 			CurrentCell->CostField[DirectionIndex] = 0;
 			if (const FTCCell* NeighborCell = Field.GetDataAt(CurrentCell->Coords, DIRECTION_OFFSETS[DirectionIndex]))
 			{
-				const FVector2f& NeighborVelocity = NeighborCell->Velocity;
+				FVector2f NeighborVelocity = FVector2f::ZeroVector;
+				if (SimParameters.bUseVelocityOptimization)
+				{
+					NeighborVelocity = DIRECTION_OFFSETS[NeighborCell->Direction];
+				}
+				else
+				{
+					NeighborVelocity = NeighborCell->Velocity;
+				}
 				const float NeighborDensity = SimParameters.bUseDensityOptimization ? NeighborCell->ByteDensity : NeighborCell->Density;
 				
 				const float DensityCost =  NeighborDensity * SimParameters.DensityConstant;
@@ -410,7 +445,7 @@ void TCSimulator::UpdateDesiredVelocityField(const int GroupID)
 			DirectionVector += NormPotential * DIRECTION_OFFSETS[DirectionIndex];
 		}
 		
-		Cell->DesiredVelocity[GroupID] = (DirectionVector / 8).GetSafeNormal() * PedParameters.DesiredSpeed;
+		Cell->DesiredVelocity[GroupID] = (DirectionVector / SimParameters.Anisotropy).GetSafeNormal() * PedParameters.DesiredSpeed;
 	};
 	Field.ForEachCellPerform(CalculateDesiredVelocity);
 }
@@ -504,6 +539,25 @@ float TCSimulator::GetSocialForceInfluence(const FVector2f& DesiredDirection, co
 	}
 	
 	return WEAK_INF;
+}
+
+EDirectionIndex TCSimulator::ConvertVectorToDirectionIndex(FVector2f Vector) const
+{
+	uint8 Result = 0;
+	
+	Vector = -Vector.GetSafeNormal();
+	float MinDotProduct = 1.0f;
+	for (int DirectionIndex = 0; DirectionIndex < SimParameters.Anisotropy; ++DirectionIndex)
+	{
+		const float DotProduct = FVector2f::DotProduct(DIRECTION_OFFSETS[DirectionIndex].GetSafeNormal(), Vector);
+		if (DotProduct < MinDotProduct)
+		{
+			MinDotProduct = DotProduct;
+			Result = DirectionIndex;
+		}
+	}
+	
+	return static_cast<EDirectionIndex>(Result);
 }
 
 //void TCSimulator::UpdateSpeedField()
