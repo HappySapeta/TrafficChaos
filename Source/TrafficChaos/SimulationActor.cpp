@@ -164,17 +164,27 @@ void ASimulationActor::DrawDebugGraphics(const float DeltaSeconds)
 	// Debug potential field.
 	if (bDrawPotentialField)
 	{
-		const auto DrawPotential = [this, World, Field, DeltaSeconds](const FTCCell* Cell, const FVector2f& Coords)
+		float MaxPotential = TNumericLimits<float>::Min();
+		const auto GetMaxPotential = [&MaxPotential, this](const FTCCell* Cell, const FVector2f& Coords)
 		{
+			const float& Potential = Cell->Potential[DebugGroupID];
+			if (Potential > MaxPotential)
+			{
+				MaxPotential = Potential;
+			}
+		};
+		
+		Field.ForEachCellPerform(GetMaxPotential);
+		const auto DrawPotential = [this, World, Field, DeltaSeconds, MaxPotential](const FTCCell* Cell, const FVector2f& Coords)
+		{
+			const float NormPotential = Cell->Potential[DebugGroupID] / MaxPotential;
+			
 			const float DebugBoxExtent = Field.GetCellSize();
 			const FVector2f WorldCoords = Field.GridToWorld(Coords);
 			const FVector BoxMin = {WorldCoords.X, WorldCoords.Y, 0};
 			const FVector BoxMax = {WorldCoords.X + DebugBoxExtent, WorldCoords.Y + DebugBoxExtent, 100};
-			DrawDebugSolidBox(World, FBox(BoxMin, BoxMax), FColor(255, 255, 255, 10));
-			
-			const FString String = FString::Printf(TEXT("%.0f"), Cell->Potential[DebugGroupID]);
-			const FVector StringLocation = {WorldCoords.X + DebugBoxExtent / 2, WorldCoords.Y + DebugBoxExtent / 2, 0.0f}; 
-			DrawDebugString(World, StringLocation , String, this, FColor::Red, DeltaSeconds);
+			const FColor BoxColor = FLinearColor(FMath::Square(NormPotential), 0, 0, 1).ToFColor(false);
+			DrawDebugSolidBox(World, FBox(BoxMin, BoxMax), BoxColor);
 		};
 	
 		Field.ForEachCellPerform(DrawPotential);

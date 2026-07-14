@@ -103,12 +103,6 @@ struct FTCSimulationParameters
 	FFloatRange DensityRange = FFloatRange(0.2, 2.0);
 	
 	UPROPERTY(EditAnywhere)
-	int VelocityLookahead = 1;
-	
-	UPROPERTY(EditAnywhere)
-	int DensityLookahead = 1;
-	
-	UPROPERTY(EditAnywhere)
 	float PathCostConstant = 1;
 	
 	UPROPERTY(EditAnywhere)
