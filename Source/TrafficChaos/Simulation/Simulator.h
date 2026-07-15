@@ -44,16 +44,18 @@ public:
 
 private:
 
-	void SolveBFS(const int GroupID);
-	void SolveFM(int GroupID);
+#ifdef USE_SOLVER_OPTIMISATION
+	void UpdatePotentialField_BFS(int GroupID);
+#else
+	void UpdatePotentialField_FM(const int GroupID);
+#endif
+	
 	void UpdateDensityAndVelocityField(const TArray<FTCEntity>& Entities);
-	void UpdateSpeedField();
-	void UpdateCostField();
-	void UpdateCostFieldNew(int GroupID);
+	void UpdateCostField(int GroupID);
 	void UpdatePotentialGradient(const int GroupID);
 	void UpdateDesiredVelocityField(const int GroupID);
 	float GetFiniteDifferenceApproximation(const FVector2f& Coords, const int GroupID);
-	FTCCheapestNeighbor GetCheapestNeighbor(const FVector2f& Coords, EDirectionIndex First, EDirectionIndex Second, int GroupID);
+	FTCCheapestNeighbor GetCheapestNeighbor(const FVector2f& Coords, EDirectionIndex First, EDirectionIndex Second, const int GroupID);
 	TArray<FTCNeighbor> GetNeighbors(const FVector2f& Coords);
 	float GetSocialForceInfluence(const FVector2f& DesiredDirection, const FVector2f& Force);
 	EDirectionIndex ConvertVectorToDirectionIndex(FVector2f Vector) const;

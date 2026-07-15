@@ -1,7 +1,9 @@
 // Copyright Anupam Sahu. All Rights Reserved.
-
 #pragma once
-#define USE_DENSITY_OPTIMIZATION
+
+#define USE_DENSITY_OPTIMISATION
+#define USE_VELOCITY_OPTIMISATION
+#define USE_SOLVER_OPTIMISATION
 
 #include "CoreMinimal.h"
 #include "SimulationDataTypes.generated.h"
@@ -56,14 +58,20 @@ struct FTCEntity
 
 struct FTCCell
 {
-	uint8 ByteDensity;
-	float Density;
-	
-	float Discomfort;
-	EDirectionIndex Direction;
-	FVector2f Velocity;
-	
 	FVector2f Coords;
+	
+#ifdef USE_DENSITY_OPTIMISATION
+	uint8 ByteDensity;
+#else
+	float Density;
+#endif
+	
+#ifdef USE_VELOCITY_OPTIMISATION
+	EDirectionIndex Direction;
+#else
+	FVector2f Velocity;
+#endif
+	float Discomfort;
 	
 	TArray<float> Potential;
 	TArray<FVector2f> DesiredVelocity;
@@ -100,9 +108,6 @@ struct FTCSimulationParameters
 	GENERATED_BODY()
 	
 	UPROPERTY(EditAnywhere)
-	FFloatRange DensityRange = FFloatRange(0.2, 2.0);
-	
-	UPROPERTY(EditAnywhere)
 	float PathCostConstant = 1;
 	
 	UPROPERTY(EditAnywhere)
@@ -116,16 +121,4 @@ struct FTCSimulationParameters
 	
 	UPROPERTY(EditAnywhere, Category = "Test")
 	TEnumAsByte<ETCAnisotropy> Anisotropy = ETCAnisotropy::FOUR_WAY;
-	
-	UPROPERTY(EditAnywhere, Category = "Test")
-	bool bUseFiniteDifferenceApproximation = true;
-	
-	UPROPERTY(EditAnywhere, Category = "Test")
-	bool bUseDensityOptimization = true;
-	
-	UPROPERTY(EditAnywhere, Category = "Test")
-	bool bUseBFS = true;
-	
-	UPROPERTY(EditAnywhere, Category = "Test")
-	bool bUseVelocityOptimization = true;
 };

@@ -134,20 +134,37 @@ void ASimulationActor::DrawDebugGraphics(const float DeltaSeconds)
 	// Debug DensityField.
 	if (bDrawDensityField)
 	{
-		const auto DrawDensities = [this, World, Field, DeltaSeconds](const FTCCell* Cell, const FVector2f& Coords)
+		float MaxDensity = TNumericLimits<float>::Min();
+		const auto GetMaxDensity = [&MaxDensity, this](const FTCCell* Cell, const FVector2f& Coords)
 		{
-			const float Density = FMath::Max(Cell->ByteDensity, Cell->Density);
+#ifdef USE_DENSITY_OPTIMISATION
+			const float& Density = Cell->ByteDensity;
+#else
+			const float& Density = Cell->Density;
+#endif
+			if (Density > MaxDensity)
+			{
+				MaxDensity = Density;
+			}
+		};
+		Field.ForEachCellPerform(GetMaxDensity);
+		
+		const auto DrawDensities = [this, World, Field, DeltaSeconds, MaxDensity](const FTCCell* Cell, const FVector2f& Coords)
+		{
+#ifdef USE_DENSITY_OPTIMISATION
+			const float& Density = Cell->ByteDensity;
+#else
+			const float& Density = Cell->Density;
+#endif
 			if (Density == 0)
 			{
 				return;
 			}
 			
-			const float NormDensity = (Density - SimParameters.DensityRange.GetLowerBoundValue()) / (SimParameters.DensityRange.GetUpperBoundValue() - SimParameters.DensityRange.GetLowerBoundValue()); 
+			const float NormDensity = Density / MaxDensity; 
 			const float DebugBoxExtent = Field.GetCellSize();
 			const FVector2f WorldCoords = Field.GridToWorld(Coords);
-			const FLinearColor DebugColor = FLinearColor::LerpUsingHSV(FLinearColor{1.0f, 1.0f, 1.0f, 0.1f},
-																	   FLinearColor{1.0f, 0.0f, 0.0f, 0.5f}, 
-																	   NormDensity);
+			const FLinearColor DebugColor = FLinearColor::LerpUsingHSV(FLinearColor{1.0f, 1.0f, 1.0f, 0.1f}, FLinearColor{1.0f, 0.0f, 0.0f, 0.5f}, NormDensity);
 		
 			const FVector BoxMin = {WorldCoords.X, WorldCoords.Y, 0};
 			const FVector BoxMax = {WorldCoords.X + DebugBoxExtent, WorldCoords.Y + DebugBoxExtent, DebugBoxExtent};
@@ -175,7 +192,7 @@ void ASimulationActor::DrawDebugGraphics(const float DeltaSeconds)
 		};
 		
 		Field.ForEachCellPerform(GetMaxPotential);
-		const auto DrawPotential = [this, World, Field, DeltaSeconds, MaxPotential](const FTCCell* Cell, const FVector2f& Coords)
+		const auto DrawPotential = [this, World, Field, MaxPotential](const FTCCell* Cell, const FVector2f& Coords)
 		{
 			const float NormPotential = Cell->Potential[DebugGroupID] / MaxPotential;
 			
@@ -195,36 +212,33 @@ void ASimulationActor::DrawDebugGraphics(const float DeltaSeconds)
 	{
 		const auto DrawVelocties = [this, World, Field](const FTCCell* Cell, const FVector2f& Coords) -> void
 		{
-			if (SimParameters.bUseVelocityOptimization)
+#ifdef USE_VELOCITY_OPTIMISATION
+			if (Cell->Direction == EDirectionIndex::NONE)
 			{
-				if (Cell->Direction == EDirectionIndex::NONE)
-				{
-					return;
-				}
-			
-				const float CellSize = Field.GetCellSize(); 
-				const FVector2f WorldLocation = Field.GridToWorld(Coords);
-				const FVector2f Direction = DIRECTION_OFFSETS[Cell->Direction].GetSafeNormal();
-				const FVector LineStart = {WorldLocation.X, WorldLocation.Y, 0};
-				const FVector LineEnd = {WorldLocation.X + Direction.X * CellSize / 2, WorldLocation.Y + Direction.Y * CellSize / 2, 0};
-				DrawDebugLine(World, LineStart, LineStart, FColor::Purple, false, -1, 0, 7.0f);
-				DrawDebugLine(World, LineStart, LineEnd, FColor::Purple, false, -1, 0, 2.0f);
+				return;
 			}
-			else
+			
+			const float CellSize = Field.GetCellSize(); 
+			const FVector2f WorldLocation = Field.GridToWorld(Coords);
+			const FVector2f Direction = DIRECTION_OFFSETS[Cell->Direction].GetSafeNormal();
+			const FVector LineStart = {WorldLocation.X, WorldLocation.Y, 0};
+			const FVector LineEnd = {WorldLocation.X + Direction.X * CellSize / 2, WorldLocation.Y + Direction.Y * CellSize / 2, 0};
+			DrawDebugLine(World, LineStart, LineStart, FColor::Purple, false, -1, 0, 7.0f);
+			DrawDebugLine(World, LineStart, LineEnd, FColor::Purple, false, -1, 0, 2.0f);
+#else
+			if (Cell->Velocity.IsNearlyZero())
 			{
-				if (Cell->Velocity.IsNearlyZero())
-				{
-					return;
-				}
-			
-				const float CellSize = Field.GetCellSize(); 
-				const FVector2f WorldLocation = Field.GridToWorld(Coords);
-				const FVector2f Direction = Cell->Velocity.GetSafeNormal();
-				const FVector LineStart = {WorldLocation.X, WorldLocation.Y, 0};
-				const FVector LineEnd = {WorldLocation.X + Direction.X * CellSize / 2, WorldLocation.Y + Direction.Y * CellSize / 2, 0};
-				DrawDebugLine(World, LineStart, LineStart, FColor::Purple, false, -1, 0, 7.0f);
-				DrawDebugLine(World, LineStart, LineEnd, FColor::Purple, false, -1, 0, 2.0f);
+				return;
 			}
+			
+			const float CellSize = Field.GetCellSize(); 
+			const FVector2f WorldLocation = Field.GridToWorld(Coords);
+			const FVector2f Direction = Cell->Velocity.GetSafeNormal();
+			const FVector LineStart = {WorldLocation.X, WorldLocation.Y, 0};
+			const FVector LineEnd = {WorldLocation.X + Direction.X * CellSize / 2, WorldLocation.Y + Direction.Y * CellSize / 2, 0};
+			DrawDebugLine(World, LineStart, LineStart, FColor::Purple, false, -1, 0, 7.0f);
+			DrawDebugLine(World, LineStart, LineEnd, FColor::Purple, false, -1, 0, 2.0f);
+#endif
 		};
 		Field.ForEachCellPerform(DrawVelocties);
 	}
