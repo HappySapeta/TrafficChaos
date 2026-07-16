@@ -142,6 +142,12 @@ struct FTCBaselineSimulationParameters
 {
 	GENERATED_BODY()
 	
+	UPROPERTY(EditAnywhere, meta = (ClampMin = 1, ClampMax = 100, UIMin = 1, UIMax = 100))
+	int GridResolution = 1;
+	
+	UPROPERTY(EditAnywhere, meta = (ClampMin = 1, UIMin = 1))
+	float WorldSpan = 1;
+	
 	UPROPERTY(EditAnywhere)
 	FFloatRange SpeedRange = FFloatRange(10.0f, 150.0f);
 	
@@ -171,6 +177,12 @@ USTRUCT()
 struct FTCSimulationParameters
 {
 	GENERATED_BODY()
+	
+	UPROPERTY(EditAnywhere, meta = (ClampMin = 1, ClampMax = 100, UIMin = 1, UIMax = 100))
+	int GridResolution = 1;
+	
+	UPROPERTY(EditAnywhere, meta = (ClampMin = 1, UIMin = 1))
+	float WorldSpan = 1;
 	
 	UPROPERTY(EditAnywhere)
 	float PathCostConstant = 1;

@@ -5,9 +5,6 @@
 #include "Kismet/KismetMathLibrary.h"
 
 constexpr float MAX_COST = TNumericLimits<float>::Max();
-constexpr float HALF_FOV = 100.0f;
-constexpr float WEAK_INF = 0.5f;
-constexpr float AVOIDANCE_TIMESTEP = 2.0f;
 
 #ifdef USE_BASELINE_MODEL
 void TCSimulator::Initialize(const float Resolution, const float WorldSize, const int NewNumGroups)
@@ -98,7 +95,7 @@ void TCSimulator::CrowdAdvection(TArray<FTCEntity>& Entities, const float TimeSt
 
 			const FVector2f& OtherPosition = Entities[OtherEntityIndex].Position;
 			const FVector2f& OtherVelocity = Entities[OtherEntityIndex].Velocity;
-			const FVector2f AvoidanceForce = FTCSocialForces::GetAvoidanceForce(CurrentPosition, OtherPosition, OtherVelocity, AVOIDANCE_TIMESTEP, PedParameters);
+			const FVector2f AvoidanceForce = FTCSocialForces::GetAvoidanceForce(CurrentPosition, OtherPosition, OtherVelocity, PedParameters.AvoidanceTimestep, PedParameters);
 			Force += GetSocialForceInfluence(DesiredDirection, -AvoidanceForce) * AvoidanceForce;
 		}
 
@@ -676,12 +673,12 @@ TArray<FTCNeighbor> TCSimulator::GetNeighbors(const FVector2f& Coords)
 
 float TCSimulator::GetSocialForceInfluence(const FVector2f& DesiredDirection, const FVector2f& Force)
 {
-	if (FVector2f::DotProduct(DesiredDirection, Force) >= Force.Length() * FMath::Cos(FMath::DegreesToRadians(HALF_FOV)))
+	if (FVector2f::DotProduct(DesiredDirection, Force) >= Force.Length() * FMath::Cos(FMath::DegreesToRadians(PedParameters.HalfFOV)))
 	{
 		return 1.0f;
 	}
 
-	return WEAK_INF;
+	return PedParameters.WeakInfluence;
 }
 
 #ifndef USE_BASELINE_MODEL

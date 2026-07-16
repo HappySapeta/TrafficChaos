@@ -11,23 +11,23 @@ void ASimulationActor::PostEditChangeProperty(struct FPropertyChangedEvent& Prop
 	FName PropertyName = (PropertyChangedEvent.MemberProperty != nullptr) ? PropertyChangedEvent.MemberProperty->GetFName() : NAME_None;
 	
 #ifdef USE_BASELINE_MODEL
-	if (PropertyName == GET_MEMBER_NAME_CHECKED(ASimulationActor, BaselineSimParameters))
+	if (PropertyName == GET_MEMBER_NAME_CHECKED(ASimulationActor, BaselineCrowdSimParams))
 	{
 		GEngine->AddOnScreenDebugMessage(-1, 2, FColor::White, FString::Printf(TEXT("Sim Parameters changed : %s"), *PropertyChangedEvent.GetPropertyName().ToString()));
-		Simulator.SetSimulationParameters(BaselineSimParameters);
+		Simulator.SetSimulationParameters(BaselineCrowdSimParams);
 	}
 #else
-	if (PropertyName == GET_MEMBER_NAME_CHECKED(ASimulationActor, SimParameters))
+	if (PropertyName == GET_MEMBER_NAME_CHECKED(ASimulationActor, EnhancedCrowdSimParams))
 	{
 		GEngine->AddOnScreenDebugMessage(-1, 2, FColor::White, FString::Printf(TEXT("Sim Parameters changed : %s"), *PropertyChangedEvent.GetPropertyName().ToString()));
-		Simulator.SetSimulationParameters(SimParameters);
+		Simulator.SetSimulationParameters(EnhancedCrowdSimParams);
 	}
 #endif
 	
-	if (PropertyName == GET_MEMBER_NAME_CHECKED(ASimulationActor, PedParameters))
+	if (PropertyName == GET_MEMBER_NAME_CHECKED(ASimulationActor, SocialForceParams))
 	{
 		GEngine->AddOnScreenDebugMessage(-1, 2, FColor::White, FString::Printf(TEXT("Ped Parameters changed : %s"), *PropertyChangedEvent.GetPropertyName().ToString()));
-		Simulator.SetAdvectionParameters(PedParameters);
+		Simulator.SetAdvectionParameters(SocialForceParams);
 	}
 	
 	Super::PostEditChangeProperty(PropertyChangedEvent);
@@ -43,14 +43,15 @@ ASimulationActor::ASimulationActor()
 void ASimulationActor::BeginPlay()
 {
 	Super::BeginPlay();
-	Simulator.Initialize(GridResolution, WorldSpan, SpawnConfigurations.Num());
 #ifdef USE_BASELINE_MODEL
-	Simulator.SetSimulationParameters(BaselineSimParameters);
+	Simulator.Initialize(BaselineCrowdSimParams.GridResolution, BaselineCrowdSimParams.WorldSpan, SpawnConfigurations.Num());
+	Simulator.SetSimulationParameters(BaselineCrowdSimParams);
 #else
-	Simulator.SetSimulationParameters(SimParameters);
+	Simulator.Initialize(EnhancedCrowdSimParams.GridResolution, EnhancedCrowdSimParams.WorldSpan, SpawnConfigurations.Num());
+	Simulator.SetSimulationParameters(EnhancedCrowdSimParams);
 #endif
 	
-	Simulator.SetAdvectionParameters(PedParameters);
+	Simulator.SetAdvectionParameters(SocialForceParams);
 	SpawnEntities();
 }
 
@@ -92,8 +93,13 @@ void ASimulationActor::SpawnEntities()
 		}
 		EntityColors.Push(Configuration.Color);
 		
-		const float GoalX = FMath::Clamp(Configuration.Goal.X, 0, WorldSpan);
-		const float GoalY = FMath::Clamp(Configuration.Goal.Y, 0, WorldSpan);
+#ifdef USE_BASELINE_MODEL
+		const float GoalX = FMath::Clamp(Configuration.Goal.X, 0, BaselineCrowdSimParams.WorldSpan);
+		const float GoalY = FMath::Clamp(Configuration.Goal.Y, 0, BaselineCrowdSimParams.WorldSpan);
+#else
+		const float GoalX = FMath::Clamp(Configuration.Goal.X, 0, EnhancedCrowdSimParams.WorldSpan);
+		const float GoalY = FMath::Clamp(Configuration.Goal.Y, 0, EnhancedCrowdSimParams.WorldSpan);
+#endif
 		Simulator.RegisterGoal(GroupID, {GoalX, GoalY});
 		++GroupID;
 	}
@@ -124,7 +130,7 @@ void ASimulationActor::DrawDebugGraphics(const float DeltaSeconds)
 	ImplicitGrid.DrawDebug(World, DeltaSeconds);
 	
 	// Draw entities.
-	if (bDrawEntities)
+	if (DebugSettings.bDrawEntities)
 	{
 		for (const FTCEntity& Entity : Entities)
 		{
@@ -140,7 +146,7 @@ void ASimulationActor::DrawDebugGraphics(const float DeltaSeconds)
 			
 			const FVector Position = {Entity.Position.X, Entity.Position.Y, 0.0f};
 			DrawDebugSphere(World, Position, 25.0f, 10, EntityColors[Entity.GroupID]);
-			if (bDrawTraces)
+			if (DebugSettings.bDrawTraces)
 			{
 				DrawDebugPoint(World, Position, 2.0f, EntityColors[Entity.GroupID], false, 20.0f);
 			}
@@ -148,7 +154,7 @@ void ASimulationActor::DrawDebugGraphics(const float DeltaSeconds)
 	}
 	
 	// Debug DensityField.
-	if (bDrawDensityField)
+	if (DebugSettings.bDrawDensityField)
 	{
 		float MaxDensity = TNumericLimits<float>::Min();
 		const auto GetMaxDensity = [&MaxDensity, this](const FTCCell* Cell, const FVector2f& Coords)
@@ -195,12 +201,12 @@ void ASimulationActor::DrawDebugGraphics(const float DeltaSeconds)
 	}
 	
 	// Debug potential field.
-	if (bDrawPotentialField)
+	if (DebugSettings.bDrawPotentialField)
 	{
 		float MaxPotential = TNumericLimits<float>::Min();
 		const auto GetMaxPotential = [&MaxPotential, this](const FTCCell* Cell, const FVector2f& Coords)
 		{
-			const float& Potential = Cell->Potential[DebugGroupID];
+			const float& Potential = Cell->Potential[DebugSettings.DebugGroupID];
 			if (Potential > MaxPotential)
 			{
 				MaxPotential = Potential;
@@ -210,7 +216,7 @@ void ASimulationActor::DrawDebugGraphics(const float DeltaSeconds)
 		Field.ForEachCellPerform(GetMaxPotential);
 		const auto DrawPotential = [this, World, Field, MaxPotential](const FTCCell* Cell, const FVector2f& Coords)
 		{
-			const float NormPotential = Cell->Potential[DebugGroupID] / MaxPotential;
+			const float NormPotential = Cell->Potential[DebugSettings.DebugGroupID] / MaxPotential;
 			
 			const float DebugBoxExtent = Field.GetCellSize();
 			const FVector2f WorldCoords = Field.GridToWorld(Coords);
@@ -224,7 +230,7 @@ void ASimulationActor::DrawDebugGraphics(const float DeltaSeconds)
 	}
 	
 	// Debug VelocityField.
-	if (bDrawCellVelocityField)
+	if (DebugSettings.bDrawCellVelocityField)
 	{
 		const auto DrawVelocties = [this, World, Field](const FTCCell* Cell, const FVector2f& Coords) -> void
 		{
@@ -260,18 +266,18 @@ void ASimulationActor::DrawDebugGraphics(const float DeltaSeconds)
 	}
 	
 	// Debug DesiredVelocityField.
-	if (bDrawDesiredVelocityField)
+	if (DebugSettings.bDrawDesiredVelocityField)
 	{
 		const auto DrawVelocties = [this, World, Field](const FTCCell* Cell, const FVector2f& Coords) -> void
 		{
-			if (Cell->DesiredVelocity[DebugGroupID].IsNearlyZero())
+			if (Cell->DesiredVelocity[DebugSettings.DebugGroupID].IsNearlyZero())
 			{
 				return;
 			}
 			
 			const float CellSize = Field.GetCellSize();
 			const FVector2f WorldLocation = Field.GridToWorld(Coords);
-			const FVector2f Direction = Cell->DesiredVelocity[DebugGroupID].IsNearlyZero() ? FVector2f{1.0f, 0.0f} : Cell->DesiredVelocity[DebugGroupID].GetSafeNormal();
+			const FVector2f Direction = Cell->DesiredVelocity[DebugSettings.DebugGroupID].IsNearlyZero() ? FVector2f{1.0f, 0.0f} : Cell->DesiredVelocity[DebugSettings.DebugGroupID].GetSafeNormal();
 			const FVector LineStart = {WorldLocation.X, WorldLocation.Y, 0};
 			const FVector LineEnd = {WorldLocation.X + Direction.X * CellSize / 2, WorldLocation.Y + Direction.Y * CellSize / 2, 0};
 			DrawDebugLine(World, LineStart, LineStart, FColor::Cyan, false, -1, 0, 7.0f);

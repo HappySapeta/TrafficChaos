@@ -40,6 +40,33 @@ struct FTCSpawnConfiguration
 	bool bUseOverrideVelocity = false;
 };
 
+USTRUCT()
+struct FTCDebugSettings
+{
+	GENERATED_BODY()
+	
+	UPROPERTY(EditAnywhere)
+	bool bDrawDensityField = false;
+	
+	UPROPERTY(EditAnywhere)
+	bool bDrawPotentialField = false;
+	
+	UPROPERTY(EditAnywhere)
+	bool bDrawCellVelocityField = false;
+	
+	UPROPERTY(EditAnywhere)
+	bool bDrawDesiredVelocityField = false;
+	
+	UPROPERTY(EditAnywhere)
+	bool bDrawEntities = true;
+	
+	UPROPERTY(EditAnywhere)
+	bool bDrawTraces = false;
+	
+	UPROPERTY(EditAnywhere, meta = (ClampMin = 0, UIMin = 0))
+	int DebugGroupID = 0;
+};
+
 UCLASS()
 class TRAFFICCHAOS_API ASimulationActor : public AActor
 {
@@ -69,44 +96,20 @@ private:
 	
 private:
 	
-	UPROPERTY(EditAnywhere, Category = "Simulation Settings", meta = (ClampMin = 1, ClampMax = 100, UIMin = 1, UIMax = 100))
-	int GridResolution = 1;
+	UPROPERTY(EditAnywhere, DisplayName = "Baseline Continuum Crowds")
+	FTCBaselineSimulationParameters BaselineCrowdSimParams;
 	
-	UPROPERTY(EditAnywhere, Category = "Simulation Settings", meta = (ClampMin = 1, UIMin = 1))
-	float WorldSpan = 1;
+	UPROPERTY(EditAnywhere, DisplayName = "Enhanced Continuum Crowds")
+	FTCSimulationParameters EnhancedCrowdSimParams;
 	
-	UPROPERTY(EditAnywhere, Category = "Debug Settings")
-	bool bDrawDensityField = false;
+	UPROPERTY(EditAnywhere, DisplayName = "Social Force Model")
+	FTCSocialForceParameters SocialForceParams;
 	
-	UPROPERTY(EditAnywhere, Category = "Debug Settings")
-	bool bDrawPotentialField = false;
-	
-	UPROPERTY(EditAnywhere, Category = "Debug Settings")
-	bool bDrawCellVelocityField = false;
-	
-	UPROPERTY(EditAnywhere, Category = "Debug Settings")
-	bool bDrawDesiredVelocityField = false;
-	
-	UPROPERTY(EditAnywhere, Category = "Debug Settings")
-	bool bDrawEntities = true;
-	
-	UPROPERTY(EditAnywhere, Category = "Debug Settings")
-	bool bDrawTraces = false;
-	
-	UPROPERTY(EditAnywhere, Category = "Debug Settings", meta = (ClampMin = 0, UIMin = 0))
-	int DebugGroupID = 0;
-	
-	UPROPERTY(EditAnywhere, Category = "Baseline Simulation Settings")
-	FTCBaselineSimulationParameters BaselineSimParameters;
-	
-	UPROPERTY(EditAnywhere, Category = "Simulation Settings")
-	FTCSimulationParameters SimParameters;
-	
-	UPROPERTY(EditAnywhere, Category = "Simulation Settings")
-	FTCSocialForceParameters PedParameters;
-	
-	UPROPERTY(EditAnywhere, Category = "Simulation Settings")
+	UPROPERTY(EditAnywhere, DisplayName = "Pedestrian Spawning")
 	TArray<FTCSpawnConfiguration> SpawnConfigurations;
+	
+	UPROPERTY(EditAnywhere, DisplayName = "Debug Settings")
+	FTCDebugSettings DebugSettings;
 	
 private:
 	
