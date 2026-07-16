@@ -9,11 +9,20 @@ constexpr float ENTITY_MOVEMENT_SPEED = 0.0f;
 void ASimulationActor::PostEditChangeProperty(struct FPropertyChangedEvent& PropertyChangedEvent)
 {
 	FName PropertyName = (PropertyChangedEvent.MemberProperty != nullptr) ? PropertyChangedEvent.MemberProperty->GetFName() : NAME_None;
+	
+#ifdef USE_BASELINE_MODEL
+	if (PropertyName == GET_MEMBER_NAME_CHECKED(ASimulationActor, BaselineSimParameters))
+	{
+		GEngine->AddOnScreenDebugMessage(-1, 2, FColor::White, FString::Printf(TEXT("Sim Parameters changed : %s"), *PropertyChangedEvent.GetPropertyName().ToString()));
+		Simulator.SetSimulationParameters(BaselineSimParameters);
+	}
+#else
 	if (PropertyName == GET_MEMBER_NAME_CHECKED(ASimulationActor, SimParameters))
 	{
 		GEngine->AddOnScreenDebugMessage(-1, 2, FColor::White, FString::Printf(TEXT("Sim Parameters changed : %s"), *PropertyChangedEvent.GetPropertyName().ToString()));
 		Simulator.SetSimulationParameters(SimParameters);
 	}
+#endif
 	
 	if (PropertyName == GET_MEMBER_NAME_CHECKED(ASimulationActor, PedParameters))
 	{
@@ -35,7 +44,12 @@ void ASimulationActor::BeginPlay()
 {
 	Super::BeginPlay();
 	Simulator.Initialize(GridResolution, WorldSpan, SpawnConfigurations.Num());
+#ifdef USE_BASELINE_MODEL
+	Simulator.SetSimulationParameters(BaselineSimParameters);
+#else
 	Simulator.SetSimulationParameters(SimParameters);
+#endif
+	
 	Simulator.SetAdvectionParameters(PedParameters);
 	SpawnEntities();
 }
@@ -66,10 +80,12 @@ void ASimulationActor::SpawnEntities()
 
 			Entities.Push
 			({
-				FVector2f{X, Y}, FVector2f{FVector2f::ZeroVector}, 
+				FVector2f{X, Y}, FVector2f{FVector2f::ZeroVector},
+				GroupID,
+#ifdef ENABLE_VELOCITY_OVERRIDING
 				Configuration.OverrideVelocity,
-				Configuration.bUseOverrideVelocity, 
-				GroupID
+				Configuration.bUseOverrideVelocity
+#endif
 			});
 			
 			++NumSpawned;
@@ -137,7 +153,7 @@ void ASimulationActor::DrawDebugGraphics(const float DeltaSeconds)
 		float MaxDensity = TNumericLimits<float>::Min();
 		const auto GetMaxDensity = [&MaxDensity, this](const FTCCell* Cell, const FVector2f& Coords)
 		{
-#ifdef USE_DENSITY_OPTIMISATION
+#ifndef USE_BASELINE_MODEL 
 			const float& Density = Cell->ByteDensity;
 #else
 			const float& Density = Cell->Density;
@@ -151,7 +167,7 @@ void ASimulationActor::DrawDebugGraphics(const float DeltaSeconds)
 		
 		const auto DrawDensities = [this, World, Field, DeltaSeconds, MaxDensity](const FTCCell* Cell, const FVector2f& Coords)
 		{
-#ifdef USE_DENSITY_OPTIMISATION
+#ifndef USE_BASELINE_MODEL
 			const float& Density = Cell->ByteDensity;
 #else
 			const float& Density = Cell->Density;
@@ -212,7 +228,7 @@ void ASimulationActor::DrawDebugGraphics(const float DeltaSeconds)
 	{
 		const auto DrawVelocties = [this, World, Field](const FTCCell* Cell, const FVector2f& Coords) -> void
 		{
-#ifdef USE_VELOCITY_OPTIMISATION
+#ifndef USE_BASELINE_MODEL
 			if (Cell->Direction == EDirectionIndex::NONE)
 			{
 				return;

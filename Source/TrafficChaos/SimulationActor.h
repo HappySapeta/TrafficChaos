@@ -96,6 +96,9 @@ private:
 	UPROPERTY(EditAnywhere, Category = "Debug Settings", meta = (ClampMin = 0, UIMin = 0))
 	int DebugGroupID = 0;
 	
+	UPROPERTY(EditAnywhere, Category = "Baseline Simulation Settings")
+	FTCBaselineSimulationParameters BaselineSimParameters;
+	
 	UPROPERTY(EditAnywhere, Category = "Simulation Settings")
 	FTCSimulationParameters SimParameters;
 	

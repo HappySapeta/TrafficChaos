@@ -22,10 +22,17 @@ public:
 		return Field;
 	}
 
+#ifdef USE_BASELINE_MODEL
+	void SetSimulationParameters(const FTCBaselineSimulationParameters& Parameters)
+	{
+		SimParameters = Parameters; 
+	}
+#else
 	void SetSimulationParameters(const FTCSimulationParameters& Parameters)
 	{
 		SimParameters = Parameters; 
 	}
+#endif
 	
 	void SetAdvectionParameters(const FTCSocialForceParameters& Parameters)
 	{
@@ -43,34 +50,44 @@ public:
 	void Update(const TArray<FTCEntity>& Entities, float DeltaSeconds);
 
 private:
-
-#ifdef USE_SOLVER_OPTIMISATION
-	void UpdatePotentialField_BFS(int GroupID);
-#else
+	
+	void UpdateCostField(const int GroupID);
+#ifdef USE_BASELINE_MODEL
 	void UpdatePotentialField_FM(const int GroupID);
+	void UpdateSpeedField();
+#else
+	void UpdatePotentialField_BFS(int GroupID);
+	EDirectionIndex ConvertVectorToDirectionIndex(FVector2f Vector) const;
 #endif
 	
 	void UpdateDensityAndVelocityField(const TArray<FTCEntity>& Entities);
-	void UpdateCostField(int GroupID);
 	void UpdatePotentialGradient(const int GroupID);
 	void UpdateDesiredVelocityField(const int GroupID);
 	float GetFiniteDifferenceApproximation(const FVector2f& Coords, const int GroupID);
 	FTCCheapestNeighbor GetCheapestNeighbor(const FVector2f& Coords, EDirectionIndex First, EDirectionIndex Second, const int GroupID);
 	TArray<FTCNeighbor> GetNeighbors(const FVector2f& Coords);
 	float GetSocialForceInfluence(const FVector2f& DesiredDirection, const FVector2f& Force);
-	EDirectionIndex ConvertVectorToDirectionIndex(FVector2f Vector) const;
 
 private:
 	
 	FRpSpatialData<FTCCell> Field;
-	
 	TMap<int, FVector2f> Goals;
+	
+#ifdef USE_BASELINE_MODEL
+	TSet<FTCCell*> Knowns;
+	TArray<FTCCell*> Candidates;
+#else
 	TArray<FTCCell*> Knowns;
 	TArray<FTCCell*> Unknowns;
 	TDeque<FTCCell*> Candidates;
-	TArray<FTCCell*> CandidatesHeap;
-	
+#endif
+	 
+#ifdef USE_BASELINE_MODEL
+	FTCBaselineSimulationParameters SimParameters;
+#else
 	FTCSimulationParameters SimParameters;
+#endif
+	
 	FTCSocialForceParameters PedParameters;
 	
 	FRpImplicitGrid ImplicitGrid;
