@@ -404,15 +404,22 @@ void TCSimulator::UpdateCostField(const int GroupID)
 				FVector2f NeighborVelocity = FVector2f::ZeroVector;
 				NeighborVelocity = DIRECTION_OFFSETS[NeighborCell->Direction];
 
-				const float NeighborDensity = NeighborCell->ByteDensity;
-				const float DensityCost = NeighborDensity * SimParameters.DensityConstant;
-				const float VelocityCost = FMath::Max(-FVector2f::DotProduct(DIRECTION_OFFSETS[DirectionIndex], NeighborVelocity.GetSafeNormal()),0.1f) * SimParameters.TimeCostConstant;
-				const float DistanceCost = DIRECTION_OFFSETS[DirectionIndex].Length() * SimParameters.PathCostConstant;
+				const float MaxDensity = FMath::Square(Field.GetCellSize()) / (PI * FMath::Square(PedParameters.AvoidanceRadius * 0.5f));
+				const float NormDensity = (NeighborCell->ByteDensity / MaxDensity);
+				const float DensityCost = NormDensity * SimParameters.DensityConstant;
+				
+				const float DotProduct = -FVector2f::DotProduct(DIRECTION_OFFSETS[DirectionIndex].GetSafeNormal(), NeighborVelocity.GetSafeNormal());
+				const float ClampedDotProduct = FMath::Max(DotProduct, 0.1f);
+				const float NormDotProduct = UKismetMathLibrary::NormalizeToRange(ClampedDotProduct, 0, 1);
+				const float VelocityCost = NormDotProduct * SimParameters.TimeCostConstant;
+				
+				const float NormDistance = DIRECTION_OFFSETS[DirectionIndex].Length() / FMath::Sqrt(2.0f);
+				const float DistanceCost = NormDistance * SimParameters.PathCostConstant;
 
-				CurrentCell->CostField[GroupID][DirectionIndex] = DensityCost + VelocityCost + DistanceCost;
+				CurrentCell->CostField[GroupID][DirectionIndex] = (DensityCost + VelocityCost + DistanceCost) / 3;
 			}
 		}
-	};
+	}; 
 	Field.ForEachCellPerform(CalculateCost);
 }
 #endif
@@ -602,12 +609,12 @@ float TCSimulator::GetFiniteDifferenceApproximation(const FVector2f& Coords, con
 
 	if (PhiX == MAX_COST && PhiY < MAX_COST)
 	{
-		return FMath::Square(Cy) + PhiY;
+		return Cy + PhiY;
 	}
 
 	if (PhiY == MAX_COST && PhiX < MAX_COST)
 	{
-		return FMath::Square(Cx) + PhiX;
+		return Cx + PhiX;
 	}
 
 	if (PhiY == MAX_COST && PhiX == MAX_COST)
@@ -636,7 +643,7 @@ float TCSimulator::GetFiniteDifferenceApproximation(const FVector2f& Coords, con
 		}
 	}
 
-	return FMath::Min(PhiX + FMath::Square(Cx), PhiY + FMath::Square(Cy));
+	return FMath::Min(PhiX + Cx, PhiY + Cy);
 }
 
 #ifdef USE_BASELINE_MODEL

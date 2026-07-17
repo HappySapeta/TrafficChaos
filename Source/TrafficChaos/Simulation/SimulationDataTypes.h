@@ -179,23 +179,23 @@ struct FTCSimulationParameters
 	GENERATED_BODY()
 	
 	UPROPERTY(EditAnywhere, meta = (ClampMin = 1, ClampMax = 100, UIMin = 1, UIMax = 100))
-	int GridResolution = 1;
+	int GridResolution = 2;
 	
 	UPROPERTY(EditAnywhere, meta = (ClampMin = 1, UIMin = 1))
 	float WorldSpan = 1;
 	
-	UPROPERTY(EditAnywhere)
+	UPROPERTY(EditAnywhere, meta = (ClampMin = 0, ClampMax = 1, UIMin = 0, UIMax = 1))
 	float PathCostConstant = 1;
 	
-	UPROPERTY(EditAnywhere)
+	UPROPERTY(EditAnywhere, meta = (ClampMin = 0, ClampMax = 1, UIMin = 0, UIMax = 1))
 	float TimeCostConstant = 1;
 	
-	UPROPERTY(EditAnywhere)
+	UPROPERTY(EditAnywhere, meta = (ClampMin = 0, ClampMax = 1, UIMin = 0, UIMax = 1))
 	float DiscomfortConstant = 1;
 	
-	UPROPERTY(EditAnywhere, Category = "Test")
+	UPROPERTY(EditAnywhere, meta = (ClampMin = 0, ClampMax = 1, UIMin = 0, UIMax = 1))
 	float DensityConstant = 1;
 	
-	UPROPERTY(EditAnywhere, Category = "Test")
+	UPROPERTY(EditAnywhere)
 	TEnumAsByte<ETCAnisotropy> Anisotropy = ETCAnisotropy::FOUR_WAY;
 };
