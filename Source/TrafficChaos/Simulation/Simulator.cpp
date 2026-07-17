@@ -401,13 +401,11 @@ void TCSimulator::UpdateCostField(const int GroupID)
 			CurrentCell->CostField[GroupID][DirectionIndex] = 0;
 			if (const FTCCell* NeighborCell = Field.GetDataAt(CurrentCell->Coords, DIRECTION_OFFSETS[DirectionIndex]))
 			{
-				FVector2f NeighborVelocity = FVector2f::ZeroVector;
-				NeighborVelocity = DIRECTION_OFFSETS[NeighborCell->Direction];
-
 				const float MaxDensity = FMath::Square(Field.GetCellSize()) / (PI * FMath::Square(PedParameters.AvoidanceRadius * 0.5f));
 				const float NormDensity = (NeighborCell->ByteDensity / MaxDensity);
 				const float DensityCost = NormDensity * SimParameters.DensityConstant;
 				
+				const FVector2f NeighborVelocity = DIRECTION_OFFSETS[NeighborCell->Direction];
 				const float DotProduct = -FVector2f::DotProduct(DIRECTION_OFFSETS[DirectionIndex].GetSafeNormal(), NeighborVelocity.GetSafeNormal());
 				const float ClampedDotProduct = FMath::Max(DotProduct, 0.1f);
 				const float NormDotProduct = UKismetMathLibrary::NormalizeToRange(ClampedDotProduct, 0, 1);

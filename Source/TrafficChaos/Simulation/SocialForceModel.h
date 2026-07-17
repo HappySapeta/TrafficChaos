@@ -10,6 +10,9 @@ struct FTCSocialForceParameters
 	GENERATED_BODY()
 	
 	UPROPERTY(EditAnywhere)
+	float PedestrianSize = 25.0f;
+	
+	UPROPERTY(EditAnywhere)
 	float DesiredSpeed = 1.0f;
 	 
 	UPROPERTY(EditAnywhere)
