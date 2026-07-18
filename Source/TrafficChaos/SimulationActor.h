@@ -96,6 +96,9 @@ private:
 	
 private:
 	
+	UPROPERTY(EditAnywhere)
+	int32 RandomSeed = 0;
+	
 	UPROPERTY(EditAnywhere, DisplayName = "Baseline Continuum Crowds")
 	FTCBaselineSimulationParameters BaselineCrowdSimParams;
 	
@@ -117,4 +120,5 @@ private:
 	TArray<FTCEntity> Entities;
 	TArray<FColor> EntityColors;
 	bool bIsUpdateEnabled = true;
+	FRandomStream RandomStream;
 };

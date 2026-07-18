@@ -394,26 +394,41 @@ void TCSimulator::UpdateCostField(const int GroupID)
 {
 	const auto CalculateCost = [this, GroupID](FTCCell* CurrentCell, const FVector2f& Coords)
 	{
-		for (int DirectionIndex = 0; DirectionIndex < SimParameters.Anisotropy; ++DirectionIndex)
+		for (int DirectionIndex = 0; DirectionIndex < NUM_DIRECTIONS; ++DirectionIndex)
 		{
 			CurrentCell->CostField[GroupID][DirectionIndex] = 0;
-			if (const FTCCell* NeighborCell = Field.GetDataAt(CurrentCell->Coords, DIRECTION_OFFSETS[DirectionIndex]))
+			
+			// Density Cost
+			if (const FTCCell* NeighborCell = Field.GetDataAt(CurrentCell->Coords, DIRECTION_OFFSETS[DirectionIndex] * SimParameters.DensityLookahead))
 			{
 				const float MaxDensity = FMath::Square(Field.GetCellSize()) / (PI * FMath::Square(PedParameters.AvoidanceRadius * 0.5f));
-				const float NormDensity = (NeighborCell->ByteDensity / MaxDensity);
+				const float NormDensity = FMath::Min(NeighborCell->ByteDensity / MaxDensity, 1);
 				const float DensityCost = NormDensity * SimParameters.DensityConstant;
-				
+
+				CurrentCell->CostField[GroupID][DirectionIndex] += DensityCost;
+			}
+			
+			// Velocity Cost
+			if (const FTCCell* NeighborCell = Field.GetDataAt(CurrentCell->Coords, DIRECTION_OFFSETS[DirectionIndex] * SimParameters.VelocityLookahead))
+			{
 				const FVector2f NeighborVelocity = DIRECTION_OFFSETS[NeighborCell->Direction];
 				const float DotProduct = -FVector2f::DotProduct(DIRECTION_OFFSETS[DirectionIndex].GetSafeNormal(), NeighborVelocity.GetSafeNormal());
 				const float ClampedDotProduct = FMath::Max(DotProduct, 0.1f);
 				const float NormDotProduct = UKismetMathLibrary::NormalizeToRange(ClampedDotProduct, 0, 1);
 				const float VelocityCost = NormDotProduct * SimParameters.TimeCostConstant;
 				
+				CurrentCell->CostField[GroupID][DirectionIndex] += VelocityCost;
+			}
+			
+			// Distance Cost
+			{
 				const float NormDistance = DIRECTION_OFFSETS[DirectionIndex].Length() / FMath::Sqrt(2.0f);
 				const float DistanceCost = NormDistance * SimParameters.PathCostConstant;
-
-				CurrentCell->CostField[GroupID][DirectionIndex] = (DensityCost + VelocityCost + DistanceCost) / 3;
+				
+				CurrentCell->CostField[GroupID][DirectionIndex] += DistanceCost;
 			}
+			
+			CurrentCell->CostField[GroupID][DirectionIndex] /= 3;
 		}
 	}; 
 	Field.ForEachCellPerform(CalculateCost);
