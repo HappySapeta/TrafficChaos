@@ -104,7 +104,6 @@ void TCSimulator::CrowdAdvection(TArray<FTCEntity>& Entities, const float TimeSt
 		// Limit Speed
 		NewVelocity = NewVelocity.GetSafeNormal() * FMath::Min(PedParameters.DesiredSpeed, NewVelocity.Length());
 
-#ifndef USE_BASELINE_MODEL
 		if (PedParameters.bEnableTurningLimit)
 		{
 			// Limit Angle
@@ -115,7 +114,6 @@ void TCSimulator::CrowdAdvection(TArray<FTCEntity>& Entities, const float TimeSt
 			const FVector2f NewDirection = DesiredDirection.GetRotated(Angle);
 			NewVelocity = NewDirection * NewVelocity.Length();
 		}
-#endif
 
 		Entities[EntityIndex].Velocity = NewVelocity;
 		Entities[EntityIndex].Position += NewVelocity * TimeStep;
