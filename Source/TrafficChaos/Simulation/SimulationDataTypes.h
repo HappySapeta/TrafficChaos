@@ -1,12 +1,17 @@
 // Copyright Anupam Sahu. All Rights Reserved.
-
 #pragma once
-//#define USE_DENSITY_OPTIMIZATION
+
+//#define USE_BASELINE_MODEL
+#define ENABLE_VELOCITY_OVERRIDING
 
 #include "CoreMinimal.h"
 #include "SimulationDataTypes.generated.h"
 
-constexpr int NUM_DIRECTIONS = 8;
+#ifdef USE_BASELINE_MODEL
+constexpr int NUM_DIRECTIONS = 4;
+#else
+constexpr int NUM_DIRECTIONS = 9;
+#endif
 
 const FVector2f D_NORTH			{ 0, -1};
 const FVector2f D_NORTH_WEST	{-1, -1};
@@ -16,7 +21,18 @@ const FVector2f D_SOUTH			{ 0, +1};
 const FVector2f D_SOUTH_EAST	{+1, +1};
 const FVector2f D_EAST			{+1,  0};
 const FVector2f D_NORTH_EAST	{+1, -1};
+const FVector2f D_ORIGIN		{ 0,  0};
 
+#ifdef USE_BASELINE_MODEL
+// North, West, South, EastDIR
+const TStaticArray<FVector2f, NUM_DIRECTIONS> DIRECTION_OFFSETS
+{
+	D_NORTH,
+	D_WEST,
+	D_SOUTH,
+	D_EAST
+};
+#else
 // North, West, South, EastDIR
 const TStaticArray<FVector2f, NUM_DIRECTIONS> DIRECTION_OFFSETS
 {
@@ -27,9 +43,20 @@ const TStaticArray<FVector2f, NUM_DIRECTIONS> DIRECTION_OFFSETS
 	D_NORTH_WEST,
 	D_SOUTH_WEST,
 	D_SOUTH_EAST,
-	D_NORTH_EAST
+	D_NORTH_EAST,
+	D_ORIGIN
 };
+#endif
 
+#ifdef USE_BASELINE_MODEL
+enum EDirectionIndex : uint8
+{
+	NORTH,
+	WEST,
+	SOUTH,
+	EAST
+};
+#else
 enum EDirectionIndex : uint8
 {
 	NORTH,
@@ -39,46 +66,58 @@ enum EDirectionIndex : uint8
 	NORTH_WEST,
 	SOUTH_WEST,
 	SOUTH_EAST,
-	NORTH_EAST
+	NORTH_EAST,
+	NONE,
 };
-
-const TArray<EDirectionIndex> CARDINAL_DIRECTIONS
-{
-	NORTH,
-	WEST,
-	SOUTH,
-	EAST,
-	NORTH_WEST,
-	SOUTH_WEST,
-	SOUTH_EAST,
-	NORTH_EAST
-};
+#endif
 
 struct FTCEntity
 {
-	FVector2f Position;
-	FVector2f Velocity;
-	int GroupID;
+	FVector2f Position = FVector2f::ZeroVector;
+	FVector2f Velocity = FVector2f::ZeroVector;
+	int GroupID = 0;
+	
+#ifdef ENABLE_VELOCITY_OVERRIDING
+	FVector2f OverrideVelocity = FVector2f::ZeroVector;
+	bool bUseOverrideVelocity = false;
+#endif
 };
 
+#ifdef USE_BASELINE_MODEL
 struct FTCCell
 {
-#ifdef USE_DENSITY_OPTIMIZATION
-	float Density;
-#endif
-#ifndef USE_DENSITY_OPTIMIZATION
-	uint8 Density;
-#endif
-	
-	float Discomfort;
-	FVector2f Velocity;
 	FVector2f Coords;
-	TStaticArray<float, NUM_DIRECTIONS> CostField;
-	TStaticArray<float, NUM_DIRECTIONS> SpeedField;
+	
+	float Density;
+	FVector2f Velocity;
+	float Discomfort;
 	
 	TArray<float> Potential;
 	TArray<FVector2f> DesiredVelocity;
+	TStaticArray<float, NUM_DIRECTIONS> SpeedField;
+	TArray<TStaticArray<float, NUM_DIRECTIONS>> CostField;
 	TArray<TStaticArray<float, NUM_DIRECTIONS>> PotentialGradient;
+};
+#else
+struct FTCCell
+{
+	FVector2f Coords;
+	
+	uint8 ByteDensity;
+	EDirectionIndex Direction;
+	float Discomfort;
+	
+	TArray<float> Potential;
+	TArray<FVector2f> DesiredVelocity;
+	TArray<TStaticArray<float, NUM_DIRECTIONS>> CostField;
+	TArray<TStaticArray<float, NUM_DIRECTIONS>> PotentialGradient;
+};
+#endif
+
+struct FTCNeighbor
+{
+	FTCCell* Cell;
+	EDirectionIndex DirectionIndex;
 };
 
 struct FTCCheapestNeighbor
@@ -99,30 +138,30 @@ enum ETCAnisotropy : uint8
 };
 
 USTRUCT()
-struct FTCSimulationParameters
+struct FTCBaselineSimulationParameters
 {
 	GENERATED_BODY()
 	
-	UPROPERTY(EditAnywhere)
-	float MaxTopoSpeed = 30;
+	UPROPERTY(EditAnywhere, meta = (ClampMin = 1, ClampMax = 100, UIMin = 1, UIMax = 100))
+	int GridResolution = 1;
+	
+	UPROPERTY(EditAnywhere, meta = (ClampMin = 1, UIMin = 1))
+	float WorldSpan = 1;
 	
 	UPROPERTY(EditAnywhere)
-	float MinTopoSpeed = 10;
+	FFloatRange SpeedRange = FFloatRange(10.0f, 150.0f);
 	
 	UPROPERTY(EditAnywhere)
-	uint8 MinDensity = 0;
+	FFloatRange DensityRange = FFloatRange(0.2f, 2.0f);
 	
 	UPROPERTY(EditAnywhere)
-	uint8 MaxDensity = 5;
+	double DensityExponent = 1.0f;
 	
 	UPROPERTY(EditAnywhere)
-	float DensityExponent = 1;
+	int VelocityLookahead = 1;
 	
 	UPROPERTY(EditAnywhere)
-	int VelocityLookupOffset = 3;
-	
-	UPROPERTY(EditAnywhere)
-	int DensityLookupOffset = 2;
+	int DensityLookahead = 1;
 	
 	UPROPERTY(EditAnywhere)
 	float PathCostConstant = 1;
@@ -132,10 +171,31 @@ struct FTCSimulationParameters
 	
 	UPROPERTY(EditAnywhere)
 	float DiscomfortConstant = 1;
+};
+
+USTRUCT()
+struct FTCSimulationParameters
+{
+	GENERATED_BODY()
 	
-	UPROPERTY(EditAnywhere)
+	UPROPERTY(EditAnywhere, meta = (ClampMin = 1, ClampMax = 100, UIMin = 1, UIMax = 100))
+	int GridResolution = 2;
+	
+	UPROPERTY(EditAnywhere, meta = (ClampMin = 1, UIMin = 1))
+	float WorldSpan = 1;
+	
+	UPROPERTY(EditAnywhere, meta = (ClampMin = 0, ClampMax = 1, UIMin = 0, UIMax = 1))
+	float PathCostConstant = 1;
+	
+	UPROPERTY(EditAnywhere, meta = (ClampMin = 0, ClampMax = 1, UIMin = 0, UIMax = 1))
+	float TimeCostConstant = 1;
+	
+	UPROPERTY(EditAnywhere, meta = (ClampMin = 0, ClampMax = 1, UIMin = 0, UIMax = 1))
+	float DiscomfortConstant = 1;
+	
+	UPROPERTY(EditAnywhere, meta = (ClampMin = 0, ClampMax = 1, UIMin = 0, UIMax = 1))
 	float DensityConstant = 1;
 	
 	UPROPERTY(EditAnywhere)
-	TEnumAsByte<ETCAnisotropy> Anisotropy = ETCAnisotropy::FOUR_WAY; 
+	TEnumAsByte<ETCAnisotropy> Anisotropy = ETCAnisotropy::FOUR_WAY;
 };

@@ -32,6 +32,39 @@ struct FTCSpawnConfiguration
 	
 	UPROPERTY(EditAnywhere, meta = (ClampMin = 0, ClampMax = 100, UIMin = 0, UIMax = 100))
 	int Amount = 1;
+	
+	UPROPERTY(EditAnywhere)
+	FVector2f OverrideVelocity;
+	
+	UPROPERTY(EditAnywhere)
+	bool bUseOverrideVelocity = false;
+};
+
+USTRUCT()
+struct FTCDebugSettings
+{
+	GENERATED_BODY()
+	
+	UPROPERTY(EditAnywhere)
+	bool bDrawDensityField = false;
+	
+	UPROPERTY(EditAnywhere)
+	bool bDrawPotentialField = false;
+	
+	UPROPERTY(EditAnywhere)
+	bool bDrawCellVelocityField = false;
+	
+	UPROPERTY(EditAnywhere)
+	bool bDrawDesiredVelocityField = false;
+	
+	UPROPERTY(EditAnywhere)
+	bool bDrawEntities = true;
+	
+	UPROPERTY(EditAnywhere)
+	bool bDrawTraces = false;
+	
+	UPROPERTY(EditAnywhere, meta = (ClampMin = 0, UIMin = 0))
+	int DebugGroupID = 0;
 };
 
 UCLASS()
@@ -46,6 +79,9 @@ public:
 	
 	virtual void Tick(const float DeltaSeconds) override;
 	
+	UFUNCTION(BlueprintCallable)
+	void SetUpdateEnabled(bool bValue);
+
 	virtual void PostEditChangeProperty(struct FPropertyChangedEvent& PropertyChangedEvent) override;
 	
 protected:
@@ -60,45 +96,25 @@ private:
 	
 private:
 	
-	UPROPERTY(EditAnywhere, Category = "Simulation Settings", meta = (ClampMin = 1, ClampMax = 100, UIMin = 1, UIMax = 100))
-	int GridResolution = 1;
+	UPROPERTY(EditAnywhere, DisplayName = "Baseline Continuum Crowds")
+	FTCBaselineSimulationParameters BaselineCrowdSimParams;
 	
-	UPROPERTY(EditAnywhere, Category = "Simulation Settings", meta = (ClampMin = 1, UIMin = 1))
-	float WorldSpan = 1;
+	UPROPERTY(EditAnywhere, DisplayName = "Enhanced Continuum Crowds")
+	FTCSimulationParameters EnhancedCrowdSimParams;
 	
-	UPROPERTY(EditAnywhere, Category = "Debug Settings")
-	bool bDrawDensityField = false;
+	UPROPERTY(EditAnywhere, DisplayName = "Social Force Model")
+	FTCSocialForceParameters SocialForceParams;
 	
-	UPROPERTY(EditAnywhere, Category = "Debug Settings")
-	bool bDrawPotentialField = false;
-	
-	UPROPERTY(EditAnywhere, Category = "Debug Settings")
-	bool bDrawCellVelocityField = false;
-	
-	UPROPERTY(EditAnywhere, Category = "Debug Settings")
-	bool bDrawDesiredVelocityField = false;
-	
-	UPROPERTY(EditAnywhere, Category = "Debug Settings")
-	bool bDrawEntities = true;
-	
-	UPROPERTY(EditAnywhere, Category = "Debug Settings")
-	bool bDrawTraces = false;
-	
-	UPROPERTY(EditAnywhere, Category = "Debug Settings", meta = (ClampMin = 0, UIMin = 0))
-	int DebugGroupID = 0;
-	
-	UPROPERTY(EditAnywhere, Category = "Simulation Settings")
-	FTCSimulationParameters SimParameters;
-	
-	UPROPERTY(EditAnywhere, Category = "Simulation Settings")
-	FTCSocialForceParameters PedParameters;
-	
-	UPROPERTY(EditAnywhere, Category = "Simulation Settings")
+	UPROPERTY(EditAnywhere, DisplayName = "Pedestrian Spawning")
 	TArray<FTCSpawnConfiguration> SpawnConfigurations;
+	
+	UPROPERTY(EditAnywhere, DisplayName = "Debug Settings")
+	FTCDebugSettings DebugSettings;
 	
 private:
 	
 	TCSimulator Simulator;
 	TArray<FTCEntity> Entities;
 	TArray<FColor> EntityColors;
+	bool bIsUpdateEnabled = true;
 };

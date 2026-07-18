@@ -22,10 +22,17 @@ public:
 		return Field;
 	}
 
+#ifdef USE_BASELINE_MODEL
+	void SetSimulationParameters(const FTCBaselineSimulationParameters& Parameters)
+	{
+		SimParameters = Parameters; 
+	}
+#else
 	void SetSimulationParameters(const FTCSimulationParameters& Parameters)
 	{
 		SimParameters = Parameters; 
 	}
+#endif
 	
 	void SetAdvectionParameters(const FTCSocialForceParameters& Parameters)
 	{
@@ -44,26 +51,43 @@ public:
 
 private:
 	
-	void Solve(const int GroupID);
-	void UpdateDensityAndVelocityField(const TArray<FTCEntity>& Entities);
+	void UpdateCostField(const int GroupID);
+#ifdef USE_BASELINE_MODEL
+	void UpdatePotentialField_FM(const int GroupID);
 	void UpdateSpeedField();
-	void UpdateCostField();
+#else
+	void UpdatePotentialField_BFS(int GroupID);
+	EDirectionIndex ConvertVectorToDirectionIndex(FVector2f Vector) const;
+#endif
+	
+	void UpdateDensityAndVelocityField(const TArray<FTCEntity>& Entities);
 	void UpdatePotentialGradient(const int GroupID);
 	void UpdateDesiredVelocityField(const int GroupID);
 	float GetFiniteDifferenceApproximation(const FVector2f& Coords, const int GroupID);
-	FTCCheapestNeighbor GetCheapestNeighbor(const FVector2f& Coords, EDirectionIndex First, EDirectionIndex Second, int GroupID);
-	TArray<FTCCell*> GetNeighbors(const FVector2f& Coords);
+	FTCCheapestNeighbor GetCheapestNeighbor(const FVector2f& Coords, EDirectionIndex First, EDirectionIndex Second, const int GroupID);
+	TArray<FTCNeighbor> GetNeighbors(const FVector2f& Coords);
 	float GetSocialForceInfluence(const FVector2f& DesiredDirection, const FVector2f& Force);
 
 private:
 	
 	FRpSpatialData<FTCCell> Field;
-	
 	TMap<int, FVector2f> Goals;
-	TArray<FTCCell*> Knowns;
-	TDeque<FTCCell*> Candidates;
 	
+#ifdef USE_BASELINE_MODEL
+	TSet<FTCCell*> Knowns;
+	TArray<FTCCell*> Candidates;
+#else
+	TArray<FTCCell*> Knowns;
+	TArray<FTCCell*> Unknowns;
+	TDeque<FTCCell*> Candidates;
+#endif
+	 
+#ifdef USE_BASELINE_MODEL
+	FTCBaselineSimulationParameters SimParameters;
+#else
 	FTCSimulationParameters SimParameters;
+#endif
+	
 	FTCSocialForceParameters PedParameters;
 	
 	FRpImplicitGrid ImplicitGrid;

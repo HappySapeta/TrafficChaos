@@ -10,10 +10,16 @@ struct FTCSocialForceParameters
 	GENERATED_BODY()
 	
 	UPROPERTY(EditAnywhere)
+	float PedestrianSize = 25.0f;
+	
+	UPROPERTY(EditAnywhere)
 	float DesiredSpeed = 1.0f;
 	 
 	UPROPERTY(EditAnywhere)
 	float RelaxationTime = 0.1f;
+	
+	UPROPERTY(EditAnywhere)
+	float WeakInfluence = 0.5f;
 	
 	UPROPERTY(EditAnywhere)
 	float AvoidanceRadius = 1.0f;
@@ -22,10 +28,16 @@ struct FTCSocialForceParameters
 	float AvoidanceStrength = 1.0f;
 	
 	UPROPERTY(EditAnywhere)
+	float AvoidanceTimestep = 2.0f;
+	
+	UPROPERTY(EditAnywhere)
 	bool bEnableTurningLimit = false;
 	
 	UPROPERTY(EditAnywhere, meta = (EditCondition = "bEnableTurningLimit", EditConditionHides = true))
 	float MaxTurnAngle = 90.0f;
+	
+	UPROPERTY(EditAnywhere)
+	float HalfFOV = 100.0f;
 };
 
 class FTCSocialForces
