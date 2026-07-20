@@ -3,8 +3,6 @@
 #include "SimulationActor.h"
 
 #include "Kismet/KismetMathLibrary.h"
-constexpr float ENTITY_MOVEMENT_RADIUS = 5.0f;
-constexpr float ENTITY_MOVEMENT_SPEED = 0.0f;
 
 void ASimulationActor::PostEditChangeProperty(struct FPropertyChangedEvent& PropertyChangedEvent)
 {
@@ -52,6 +50,8 @@ void ASimulationActor::BeginPlay()
 #endif
 	
 	Simulator.SetAdvectionParameters(SocialForceParams);
+	
+	UKismetMathLibrary::SetRandomStreamSeed(RandomStream, RandomSeed);
 	SpawnEntities();
 }
 

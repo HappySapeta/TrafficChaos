@@ -198,4 +198,10 @@ struct FTCSimulationParameters
 	
 	UPROPERTY(EditAnywhere)
 	TEnumAsByte<ETCAnisotropy> Anisotropy = ETCAnisotropy::FOUR_WAY;
+	
+	UPROPERTY(EditAnywhere, meta = (ClampMin = 1, UIMin = 1))
+	int DensityLookahead = 1;
+	
+	UPROPERTY(EditAnywhere, meta = (ClampMin = 1, UIMin = 1))
+	int VelocityLookahead = 1;
 };
