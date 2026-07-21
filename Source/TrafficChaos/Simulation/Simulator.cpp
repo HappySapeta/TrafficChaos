@@ -432,7 +432,7 @@ void TCSimulator::UpdateCostField(const int GroupID)
 			if (const FTCCell* NeighborCell = Field.GetDataAt(CurrentCell->Coords, DIRECTION_OFFSETS[DirectionIndex] * SimParameters.DensityLookahead))
 			{
 				const float MaxDensity = FMath::Square(Field.GetCellSize()) / (PI * FMath::Square(PedParameters.AvoidanceRadius * 0.5f));
-				const float NormDensity = FMath::Min(NeighborCell->ByteDensity / MaxDensity, 1);
+				const float NormDensity = FMath::Pow(FMath::Min(NeighborCell->ByteDensity / MaxDensity, 1), SimParameters.DensityExponent);
 				const float DensityCost = NormDensity * SimParameters.DensityConstant;
 
 				CurrentCell->CostField[GroupID][DirectionIndex] += DensityCost;

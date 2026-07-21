@@ -205,4 +205,7 @@ struct FTCSimulationParameters
 	
 	UPROPERTY(EditAnywhere, meta = (ClampMin = 1, UIMin = 1))
 	int VelocityLookahead = 1;
+	
+	UPROPERTY(EditAnywhere, meta = (ClampMin = 0, UIMin = 0))
+	float DensityExponent = 1.0f;
 };
