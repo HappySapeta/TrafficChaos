@@ -53,6 +53,16 @@ void ASimulationActor::BeginPlay()
 	
 	UKismetMathLibrary::SetRandomStreamSeed(RandomStream, RandomSeed);
 	SpawnEntities();
+	
+	for (const FVector2f& WallCoords : WallConfigurations)
+	{
+		Simulator.RegisterWall(WallCoords);
+	}
+	
+	for (const FTCDiscomfortZone& Zone : DiscomfortZones)
+	{
+		Simulator.RegisterDiscomfort(Zone.Coords, Zone.Amount);
+	}
 }
 
 void ASimulationActor::SpawnEntities()
@@ -159,6 +169,10 @@ void ASimulationActor::DrawDebugGraphics(const float DeltaSeconds)
 		float MaxDensity = TNumericLimits<float>::Min();
 		const auto GetMaxDensity = [&MaxDensity, this](const FTCCell* Cell, const FVector2f& Coords)
 		{
+			if (Cell->bIsWall)
+			{
+				return;
+			}
 #ifndef USE_BASELINE_MODEL 
 			const float& Density = Cell->ByteDensity;
 #else
@@ -206,6 +220,11 @@ void ASimulationActor::DrawDebugGraphics(const float DeltaSeconds)
 		float MaxPotential = TNumericLimits<float>::Min();
 		const auto GetMaxPotential = [&MaxPotential, this](const FTCCell* Cell, const FVector2f& Coords)
 		{
+			if (Cell->bIsWall)
+			{
+				return;
+			}
+			
 			const float& Potential = Cell->Potential[DebugSettings.DebugGroupID];
 			if (Potential > MaxPotential)
 			{
@@ -284,5 +303,39 @@ void ASimulationActor::DrawDebugGraphics(const float DeltaSeconds)
 			DrawDebugLine(World, LineStart, LineEnd, FColor::Cyan, false, -1, 0, 2.0f);
 		};
 		Field.ForEachCellPerform(DrawVelocties);
+	}
+	
+	if (DebugSettings.bDrawWalls)
+	{
+		const auto DrawWall = [World, Field](const FTCCell* Cell, const FVector2f& Coords)
+		{
+			if (Cell->bIsWall)
+			{
+				const float DebugBoxExtent = Field.GetCellSize();
+				const FVector2f WorldCoords = Field.GridToWorld(Coords);
+				const FVector BoxMin = {WorldCoords.X, WorldCoords.Y, 0};
+				const FVector BoxMax = {WorldCoords.X + DebugBoxExtent, WorldCoords.Y + DebugBoxExtent, 100};
+				const FColor BoxColor{0,0,255,128};
+				DrawDebugSolidBox(World, FBox(BoxMin, BoxMax), BoxColor);
+			}
+		};
+		Field.ForEachCellPerform(DrawWall);
+	}
+	
+	if (DebugSettings.bDrawDiscomfortZones)
+	{
+		const auto DrawWall = [World, Field](const FTCCell* Cell, const FVector2f& Coords)
+		{
+			if (Cell->Discomfort != 0)
+			{
+				const float DebugBoxExtent = Field.GetCellSize();
+				const FVector2f WorldCoords = Field.GridToWorld(Coords);
+				const FVector BoxMin = {WorldCoords.X, WorldCoords.Y, 0};
+				const FVector BoxMax = {WorldCoords.X + DebugBoxExtent, WorldCoords.Y + DebugBoxExtent, 100};
+				const FColor BoxColor = FLinearColor::LerpUsingHSV(FLinearColor::Transparent, FLinearColor::Green, Cell->Discomfort).ToFColor(false);
+				DrawDebugSolidBox(World, FBox(BoxMin, BoxMax), BoxColor);
+			}
+		};
+		Field.ForEachCellPerform(DrawWall);
 	}
 }

@@ -46,6 +46,8 @@ public:
 	
 	void Initialize(float Resolution, float WorldSize, int NumGroups);
 	void RegisterGoal(const int GroupID, const FVector2f& Goal);
+	void RegisterWall(const FVector2f& WallCoords);
+	void RegisterDiscomfort(const FVector2f& WallCoords, const float Amount);
 	void CrowdAdvection(TArray<FTCEntity>& Entities, float TimeStep);
 	void Update(const TArray<FTCEntity>& Entities, float DeltaSeconds);
 

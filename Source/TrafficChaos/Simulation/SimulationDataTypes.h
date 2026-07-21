@@ -111,6 +111,7 @@ struct FTCCell
 	TArray<FVector2f> DesiredVelocity;
 	TArray<TStaticArray<float, NUM_DIRECTIONS>> CostField;
 	TArray<TStaticArray<float, NUM_DIRECTIONS>> PotentialGradient;
+	bool bIsWall = false;
 };
 #endif
 
@@ -179,10 +180,10 @@ struct FTCSimulationParameters
 	GENERATED_BODY()
 	
 	UPROPERTY(EditAnywhere, meta = (ClampMin = 1, ClampMax = 100, UIMin = 1, UIMax = 100))
-	int GridResolution = 2;
+	int GridResolution = 10;
 	
 	UPROPERTY(EditAnywhere, meta = (ClampMin = 1, UIMin = 1))
-	float WorldSpan = 1;
+	float WorldSpan = 1000;
 	
 	UPROPERTY(EditAnywhere, meta = (ClampMin = 0, ClampMax = 1, UIMin = 0, UIMax = 1))
 	float PathCostConstant = 1;

@@ -55,6 +55,30 @@ void TCSimulator::RegisterGoal(const int GroupID, const FVector2f& Goal)
 	Goals.Add({GroupID, Goal});
 }
 
+void TCSimulator::RegisterWall(const FVector2f& WallCoords)
+{
+	if (FTCCell* Cell = Field.GetDataAt(Field.WorldToGrid(WallCoords)))
+	{
+		for (int GroupID = 0; GroupID < NumGroups; ++GroupID)
+		{
+			Cell->Potential[GroupID] = MAX_COST;
+			Cell->bIsWall = true;
+		}
+	}
+}
+
+void TCSimulator::RegisterDiscomfort(const FVector2f& WallCoords, const float Amount)
+{
+	if (FTCCell* Cell = Field.GetDataAt(Field.WorldToGrid(WallCoords)))
+	{
+		for (int GroupID = 0; GroupID < NumGroups; ++GroupID)
+		{
+			Cell->Potential[GroupID] = MAX_COST;
+			Cell->Discomfort = Amount;
+		}
+	}
+}
+
 void TCSimulator::CrowdAdvection(TArray<FTCEntity>& Entities, const float TimeStep)
 {
 	TArray<FVector> Positions;
@@ -163,6 +187,7 @@ void TCSimulator::UpdatePotentialField_BFS(const int GroupID)
 	// 1. Get the goal cell.
 	FTCCell* GoalCell = Field.GetDataAt(GoalCoords);
 	GoalCell->Potential[GroupID] = 0;
+	GoalCell->bIsWall = false;
 	Candidates.PushFirst(GoalCell);
 
 	// 2. Initialize potentials
@@ -189,6 +214,11 @@ void TCSimulator::UpdatePotentialField_BFS(const int GroupID)
 		const TArray<FTCNeighbor> Neighbors = GetNeighbors(Current->Coords);
 		for (const auto& [Neighbor, NeighborDirection] : Neighbors)
 		{
+			if (Neighbor->bIsWall)
+			{
+				continue;
+			}
+			
 			const float NewPotential = GetFiniteDifferenceApproximation(Neighbor->Coords, GroupID);
 			if (NewPotential < Neighbor->Potential[GroupID])
 			{
@@ -428,7 +458,15 @@ void TCSimulator::UpdateCostField(const int GroupID)
 				CurrentCell->CostField[GroupID][DirectionIndex] += DistanceCost;
 			}
 			
-			CurrentCell->CostField[GroupID][DirectionIndex] /= 3;
+			// Discomfort Cost
+			{
+				if (const FTCCell* NeighborCell = Field.GetDataAt(CurrentCell->Coords, DIRECTION_OFFSETS[DirectionIndex]))
+				{
+					CurrentCell->CostField[GroupID][DirectionIndex] += NeighborCell->Discomfort * SimParameters.DiscomfortConstant;
+				}
+			}
+			
+			CurrentCell->CostField[GroupID][DirectionIndex] /= 5;
 		}
 	}; 
 	Field.ForEachCellPerform(CalculateCost);
