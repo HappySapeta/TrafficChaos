@@ -13,6 +13,8 @@ constexpr int NUM_DIRECTIONS = 4;
 constexpr int NUM_DIRECTIONS = 9;
 #endif
 
+constexpr int ANISOTROPY = 4;
+
 const FVector2f D_NORTH			{ 0, -1};
 const FVector2f D_NORTH_WEST	{-1, -1};
 const FVector2f D_WEST			{-1,  0};
@@ -131,13 +133,6 @@ struct FTCCheapestNeighbor
 	}
 };
 
-UENUM()
-enum ETCAnisotropy : uint8
-{
-	FOUR_WAY = 4,
-	EIGHT_WAY = 8
-};
-
 USTRUCT()
 struct FTCBaselineSimulationParameters
 {
@@ -196,9 +191,6 @@ struct FTCSimulationParameters
 	
 	UPROPERTY(EditAnywhere, meta = (ClampMin = 0, ClampMax = 1, UIMin = 0, UIMax = 1))
 	float DensityConstant = 1;
-	
-	UPROPERTY(EditAnywhere)
-	TEnumAsByte<ETCAnisotropy> Anisotropy = ETCAnisotropy::FOUR_WAY;
 	
 	UPROPERTY(EditAnywhere, meta = (ClampMin = 1, UIMin = 1))
 	int DensityLookahead = 1;

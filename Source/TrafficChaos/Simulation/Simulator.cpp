@@ -537,7 +537,7 @@ void TCSimulator::UpdatePotentialGradient(const int GroupID)
 {
 	const auto Operation = [this, GroupID](FTCCell* Cell, const FVector2f& Coords) -> void
 	{
-		for (int DirectionIndex = 0; DirectionIndex < SimParameters.Anisotropy; ++DirectionIndex)
+		for (int DirectionIndex = 0; DirectionIndex < ANISOTROPY; ++DirectionIndex)
 		{
 			if (const FTCCell* Neighbor = Field.GetDataAt(Coords, DIRECTION_OFFSETS[DirectionIndex]))
 			{
@@ -716,7 +716,7 @@ TArray<FTCNeighbor> TCSimulator::GetNeighbors(const FVector2f& Coords)
 {
 	TArray<FTCNeighbor> Neighbors;
 
-	for (int DirectionIndex = 0; DirectionIndex < SimParameters.Anisotropy; ++DirectionIndex)
+	for (int DirectionIndex = 0; DirectionIndex < ANISOTROPY; ++DirectionIndex)
 	{
 		if (FTCCell* Node = Field.GetDataAt(Coords, DIRECTION_OFFSETS[DirectionIndex]))
 		{
@@ -745,7 +745,7 @@ EDirectionIndex TCSimulator::ConvertVectorToDirectionIndex(FVector2f Vector) con
 	Vector = -Vector.GetSafeNormal();
 	float MinDotProduct = 1.0f;
 
-	for (int DirectionIndex = 0; DirectionIndex < SimParameters.Anisotropy; ++DirectionIndex)
+	for (int DirectionIndex = 0; DirectionIndex < ANISOTROPY; ++DirectionIndex)
 	{
 		const float DotProduct = FVector2f::DotProduct(DIRECTION_OFFSETS[DirectionIndex].GetSafeNormal(), Vector);
 		if (DotProduct < MinDotProduct)
