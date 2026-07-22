@@ -69,6 +69,9 @@ struct FTCDebugSettings
 	UPROPERTY(EditAnywhere)
 	bool bDrawDiscomfortZones = false;
 	
+	UPROPERTY(EditAnywhere)
+	bool bDrawGrid = false;
+
 	UPROPERTY(EditAnywhere, meta = (ClampMin = 0, UIMin = 0))
 	int DebugGroupID = 0;
 };

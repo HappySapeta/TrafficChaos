@@ -426,20 +426,23 @@ void TCSimulator::UpdateCostField(const int GroupID)
 	{
 		for (int DirectionIndex = 0; DirectionIndex < NUM_DIRECTIONS; ++DirectionIndex)
 		{
-			CurrentCell->CostField[GroupID][DirectionIndex] = 0;
+			float TotalCost = 0;
+			const FTCCell* NeighborCell = Field.GetDataAt(CurrentCell->Coords, DIRECTION_OFFSETS[DirectionIndex]);
+			if (!NeighborCell)
+			{
+				continue;
+			}
 			
 			// Density Cost
-			if (const FTCCell* NeighborCell = Field.GetDataAt(CurrentCell->Coords, DIRECTION_OFFSETS[DirectionIndex] * SimParameters.DensityLookahead))
 			{
 				const float MaxDensity = FMath::Square(Field.GetCellSize()) / (PI * FMath::Square(PedParameters.AvoidanceRadius * 0.5f));
 				const float NormDensity = FMath::Pow(FMath::Min(NeighborCell->ByteDensity / MaxDensity, 1), SimParameters.DensityExponent);
 				const float DensityCost = NormDensity * SimParameters.DensityConstant;
 
-				CurrentCell->CostField[GroupID][DirectionIndex] += DensityCost;
+				TotalCost += DensityCost;
 			}
 			
 			// Velocity Cost
-			if (const FTCCell* NeighborCell = Field.GetDataAt(CurrentCell->Coords, DIRECTION_OFFSETS[DirectionIndex] * SimParameters.VelocityLookahead))
 			{
 				const FVector2f NeighborVelocity = DIRECTION_OFFSETS[NeighborCell->Direction];
 				const float DotProduct = -FVector2f::DotProduct(DIRECTION_OFFSETS[DirectionIndex].GetSafeNormal(), NeighborVelocity.GetSafeNormal());
@@ -447,7 +450,7 @@ void TCSimulator::UpdateCostField(const int GroupID)
 				const float NormDotProduct = UKismetMathLibrary::NormalizeToRange(ClampedDotProduct, 0, 1);
 				const float VelocityCost = NormDotProduct * SimParameters.TimeCostConstant;
 				
-				CurrentCell->CostField[GroupID][DirectionIndex] += VelocityCost;
+				TotalCost += VelocityCost;
 			}
 			
 			// Distance Cost
@@ -455,18 +458,16 @@ void TCSimulator::UpdateCostField(const int GroupID)
 				const float NormDistance = DIRECTION_OFFSETS[DirectionIndex].Length() / FMath::Sqrt(2.0f);
 				const float DistanceCost = NormDistance * SimParameters.PathCostConstant;
 				
-				CurrentCell->CostField[GroupID][DirectionIndex] += DistanceCost;
+				TotalCost += DistanceCost;
 			}
 			
 			// Discomfort Cost
 			{
-				if (const FTCCell* NeighborCell = Field.GetDataAt(CurrentCell->Coords, DIRECTION_OFFSETS[DirectionIndex]))
-				{
-					CurrentCell->CostField[GroupID][DirectionIndex] += NeighborCell->Discomfort * SimParameters.DiscomfortConstant;
-				}
+				TotalCost += NeighborCell->Discomfort * SimParameters.DiscomfortConstant;
 			}
 			
-			CurrentCell->CostField[GroupID][DirectionIndex] /= 5;
+			TotalCost /= 4;
+			CurrentCell->CostField[GroupID][DirectionIndex] = TotalCost;
 		}
 	}; 
 	Field.ForEachCellPerform(CalculateCost);
