@@ -62,9 +62,30 @@ struct FTCDebugSettings
 	
 	UPROPERTY(EditAnywhere)
 	bool bDrawTraces = false;
+
+	UPROPERTY(EditAnywhere)
+	bool bDrawWalls = false;
+
+	UPROPERTY(EditAnywhere)
+	bool bDrawDiscomfortZones = false;
 	
+	UPROPERTY(EditAnywhere)
+	bool bDrawGrid = false;
+
 	UPROPERTY(EditAnywhere, meta = (ClampMin = 0, UIMin = 0))
 	int DebugGroupID = 0;
+};
+
+USTRUCT()
+struct FTCDiscomfortZone
+{
+	GENERATED_BODY()
+	
+	UPROPERTY(EditAnywhere)
+	FVector2f Coords;
+	
+	UPROPERTY(EditAnywhere)
+	float Amount = 1.0f;
 };
 
 UCLASS()
@@ -108,8 +129,14 @@ private:
 	UPROPERTY(EditAnywhere, DisplayName = "Social Force Model")
 	FTCSocialForceParameters SocialForceParams;
 	
-	UPROPERTY(EditAnywhere, DisplayName = "Pedestrian Spawning")
+	UPROPERTY(EditAnywhere)
 	TArray<FTCSpawnConfiguration> SpawnConfigurations;
+	
+	UPROPERTY(EditAnywhere)
+	TArray<FVector2f> WallConfigurations;
+	
+	UPROPERTY(EditAnywhere)
+	TArray<FTCDiscomfortZone> DiscomfortZones;
 	
 	UPROPERTY(EditAnywhere, DisplayName = "Debug Settings")
 	FTCDebugSettings DebugSettings;

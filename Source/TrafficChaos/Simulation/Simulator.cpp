@@ -55,6 +55,30 @@ void TCSimulator::RegisterGoal(const int GroupID, const FVector2f& Goal)
 	Goals.Add({GroupID, Goal});
 }
 
+void TCSimulator::RegisterWall(const FVector2f& WallCoords)
+{
+	if (FTCCell* Cell = Field.GetDataAt(Field.WorldToGrid(WallCoords)))
+	{
+		for (int GroupID = 0; GroupID < NumGroups; ++GroupID)
+		{
+			Cell->Potential[GroupID] = MAX_COST;
+			Cell->bIsWall = true;
+		}
+	}
+}
+
+void TCSimulator::RegisterDiscomfort(const FVector2f& WallCoords, const float Amount)
+{
+	if (FTCCell* Cell = Field.GetDataAt(Field.WorldToGrid(WallCoords)))
+	{
+		for (int GroupID = 0; GroupID < NumGroups; ++GroupID)
+		{
+			Cell->Potential[GroupID] = MAX_COST;
+			Cell->Discomfort = Amount;
+		}
+	}
+}
+
 void TCSimulator::CrowdAdvection(TArray<FTCEntity>& Entities, const float TimeStep)
 {
 	TArray<FVector> Positions;
@@ -163,6 +187,7 @@ void TCSimulator::UpdatePotentialField_BFS(const int GroupID)
 	// 1. Get the goal cell.
 	FTCCell* GoalCell = Field.GetDataAt(GoalCoords);
 	GoalCell->Potential[GroupID] = 0;
+	GoalCell->bIsWall = false;
 	Candidates.PushFirst(GoalCell);
 
 	// 2. Initialize potentials
@@ -189,6 +214,11 @@ void TCSimulator::UpdatePotentialField_BFS(const int GroupID)
 		const TArray<FTCNeighbor> Neighbors = GetNeighbors(Current->Coords);
 		for (const auto& [Neighbor, NeighborDirection] : Neighbors)
 		{
+			if (Neighbor->bIsWall)
+			{
+				continue;
+			}
+			
 			const float NewPotential = GetFiniteDifferenceApproximation(Neighbor->Coords, GroupID);
 			if (NewPotential < Neighbor->Potential[GroupID])
 			{
@@ -396,20 +426,23 @@ void TCSimulator::UpdateCostField(const int GroupID)
 	{
 		for (int DirectionIndex = 0; DirectionIndex < NUM_DIRECTIONS; ++DirectionIndex)
 		{
-			CurrentCell->CostField[GroupID][DirectionIndex] = 0;
+			float TotalCost = 0;
+			const FTCCell* NeighborCell = Field.GetDataAt(CurrentCell->Coords, DIRECTION_OFFSETS[DirectionIndex]);
+			if (!NeighborCell)
+			{
+				continue;
+			}
 			
 			// Density Cost
-			if (const FTCCell* NeighborCell = Field.GetDataAt(CurrentCell->Coords, DIRECTION_OFFSETS[DirectionIndex] * SimParameters.DensityLookahead))
 			{
 				const float MaxDensity = FMath::Square(Field.GetCellSize()) / (PI * FMath::Square(PedParameters.AvoidanceRadius * 0.5f));
-				const float NormDensity = FMath::Min(NeighborCell->ByteDensity / MaxDensity, 1);
+				const float NormDensity = FMath::Pow(FMath::Min(NeighborCell->ByteDensity / MaxDensity, 1), SimParameters.DensityExponent);
 				const float DensityCost = NormDensity * SimParameters.DensityConstant;
 
-				CurrentCell->CostField[GroupID][DirectionIndex] += DensityCost;
+				TotalCost += DensityCost;
 			}
 			
 			// Velocity Cost
-			if (const FTCCell* NeighborCell = Field.GetDataAt(CurrentCell->Coords, DIRECTION_OFFSETS[DirectionIndex] * SimParameters.VelocityLookahead))
 			{
 				const FVector2f NeighborVelocity = DIRECTION_OFFSETS[NeighborCell->Direction];
 				const float DotProduct = -FVector2f::DotProduct(DIRECTION_OFFSETS[DirectionIndex].GetSafeNormal(), NeighborVelocity.GetSafeNormal());
@@ -417,7 +450,7 @@ void TCSimulator::UpdateCostField(const int GroupID)
 				const float NormDotProduct = UKismetMathLibrary::NormalizeToRange(ClampedDotProduct, 0, 1);
 				const float VelocityCost = NormDotProduct * SimParameters.TimeCostConstant;
 				
-				CurrentCell->CostField[GroupID][DirectionIndex] += VelocityCost;
+				TotalCost += VelocityCost;
 			}
 			
 			// Distance Cost
@@ -425,10 +458,16 @@ void TCSimulator::UpdateCostField(const int GroupID)
 				const float NormDistance = DIRECTION_OFFSETS[DirectionIndex].Length() / FMath::Sqrt(2.0f);
 				const float DistanceCost = NormDistance * SimParameters.PathCostConstant;
 				
-				CurrentCell->CostField[GroupID][DirectionIndex] += DistanceCost;
+				TotalCost += DistanceCost;
 			}
 			
-			CurrentCell->CostField[GroupID][DirectionIndex] /= 3;
+			// Discomfort Cost
+			{
+				TotalCost += NeighborCell->Discomfort * SimParameters.DiscomfortConstant;
+			}
+			
+			TotalCost /= 4;
+			CurrentCell->CostField[GroupID][DirectionIndex] = TotalCost;
 		}
 	}; 
 	Field.ForEachCellPerform(CalculateCost);
