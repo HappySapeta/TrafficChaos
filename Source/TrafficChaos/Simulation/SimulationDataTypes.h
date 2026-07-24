@@ -1,7 +1,7 @@
 // Copyright Anupam Sahu. All Rights Reserved.
 #pragma once
 
-#define USE_BASELINE_MODEL
+//#define USE_BASELINE_MODEL
 #define ENABLE_VELOCITY_OVERRIDING
 
 #include "CoreMinimal.h"
