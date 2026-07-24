@@ -1,7 +1,7 @@
 // Copyright Anupam Sahu. All Rights Reserved.
 #pragma once
 
-//#define USE_BASELINE_MODEL
+#define USE_BASELINE_MODEL
 #define ENABLE_VELOCITY_OVERRIDING
 
 #include "CoreMinimal.h"
@@ -99,6 +99,7 @@ struct FTCCell
 	TStaticArray<float, NUM_DIRECTIONS> SpeedField;
 	TArray<TStaticArray<float, NUM_DIRECTIONS>> CostField;
 	TArray<TStaticArray<float, NUM_DIRECTIONS>> PotentialGradient;
+	bool bIsWall = false;
 };
 #else
 struct FTCCell
