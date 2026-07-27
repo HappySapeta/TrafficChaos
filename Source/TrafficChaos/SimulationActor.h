@@ -100,6 +100,12 @@ public:
 	
 	virtual void Tick(const float DeltaSeconds) override;
 	
+	UFUNCTION(CallInEditor)
+	void StartCollectingMetrics();
+	
+	UFUNCTION(CallInEditor)
+	void StopAndSaveMetrics();
+
 	UFUNCTION(BlueprintCallable)
 	void SetUpdateEnabled(bool bValue);
 
@@ -110,6 +116,8 @@ protected:
 	virtual void BeginPlay() override;
 	
 private:
+	
+	void CollectMetrics();
 	
 	void SpawnEntities();
 	
@@ -141,6 +149,9 @@ private:
 	UPROPERTY(EditAnywhere, DisplayName = "Debug Settings")
 	FTCDebugSettings DebugSettings;
 	
+	UPROPERTY(EditAnywhere)
+	FString TestName = TEXT("Default");
+	
 private:
 	
 	TCSimulator Simulator;
@@ -148,4 +159,9 @@ private:
 	TArray<FColor> EntityColors;
 	bool bIsUpdateEnabled = true;
 	FRandomStream RandomStream;
+	
+	TArray<TArray<FVector2f>> Metric_Positions;
+	TArray<TArray<float>> Metric_Distance;
+	TArray<TArray<float>> Metric_InterPedDistance;
+	bool bShouldCollectMetrics = false;
 };

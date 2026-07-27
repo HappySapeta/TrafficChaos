@@ -38,6 +38,56 @@ ASimulationActor::ASimulationActor()
 	PrimaryActorTick.bCanEverTick = true;
 }
 
+void ASimulationActor::SpawnEntities()
+{
+	int GroupID = 0;
+	for (const FTCSpawnConfiguration& Configuration : SpawnConfigurations)
+	{
+		const float& SpawnRange = Configuration.SpawnRange;
+		const float& H = Configuration.Origin.X;
+		const float& K = Configuration.Origin.Y;
+		const float& A = Configuration.SpawnAreaWidth;
+		const float& R = Configuration.Rotation;
+		int NumSpawned = 0;
+		while (NumSpawned < Configuration.Amount)
+		{
+			const float S = UKismetMathLibrary::RandomFloatInRange(0, SpawnRange);
+			const float T = UKismetMathLibrary::RandomFloatInRange(0, 2 * PI);
+			const float X = S * (A * FMath::Cos(T) * FMath::Cos(R) - FMath::Sin(T) * FMath::Sin(R)) + H;
+			const float Y = S * (A * FMath::Cos(T) * FMath::Sin(R) + FMath::Sin(T) * FMath::Cos(R)) + K;
+			
+			const FVector2f NewPosition{X, Y};
+			if (!Simulator.GetFieldData().IsValidWorldPosition(NewPosition))
+			{
+				continue;
+			}
+
+			Entities.Push
+			({
+				NewPosition, FVector2f{FVector2f::ZeroVector},
+				GroupID,
+#ifdef ENABLE_VELOCITY_OVERRIDING
+				Configuration.OverrideVelocity,
+				Configuration.bUseOverrideVelocity
+#endif
+			});
+			
+			++NumSpawned;
+		}
+		EntityColors.Push(Configuration.Color);
+		
+#ifdef USE_BASELINE_MODEL
+		const float GoalX = FMath::Clamp(Configuration.Goal.X, 0, BaselineCrowdSimParams.WorldSpan);
+		const float GoalY = FMath::Clamp(Configuration.Goal.Y, 0, BaselineCrowdSimParams.WorldSpan);
+#else
+		const float GoalX = FMath::Clamp(Configuration.Goal.X, 0, EnhancedCrowdSimParams.WorldSpan);
+		const float GoalY = FMath::Clamp(Configuration.Goal.Y, 0, EnhancedCrowdSimParams.WorldSpan);
+#endif
+		Simulator.RegisterGoal(GroupID, {GoalX, GoalY});
+		++GroupID;
+	}
+}
+
 void ASimulationActor::BeginPlay()
 {
 	Super::BeginPlay();
@@ -65,56 +115,6 @@ void ASimulationActor::BeginPlay()
 	}
 }
 
-void ASimulationActor::SpawnEntities()
-{
-	int GroupID = 0;
-	for (const FTCSpawnConfiguration& Configuration : SpawnConfigurations)
-	{
-		const float& SpawnRange = Configuration.SpawnRange;
-		const float& H = Configuration.Origin.X;
-		const float& K = Configuration.Origin.Y;
-		const float& A = Configuration.SpawnAreaWidth;
-		const float& R = Configuration.Rotation;
-		int NumSpawned = 0;
-		while (NumSpawned < Configuration.Amount)
-		{
-			const float S = UKismetMathLibrary::RandomFloatInRange(0, SpawnRange);
-			const float T = UKismetMathLibrary::RandomFloatInRange(0, 2 * PI);
-			const float X = S * (A * FMath::Cos(T) * FMath::Cos(R) - FMath::Sin(T) * FMath::Sin(R)) + H;
-			const float Y = S * (A * FMath::Cos(T) * FMath::Sin(R) + FMath::Sin(T) * FMath::Cos(R)) + K;
-			
-			const FVector2f NewPosition = {X, Y};
-			if (!Simulator.GetFieldData().IsValidWorldPosition(NewPosition))
-			{
-				continue;
-			}
-
-			Entities.Push
-			({
-				FVector2f{X, Y}, FVector2f{FVector2f::ZeroVector},
-				GroupID,
-#ifdef ENABLE_VELOCITY_OVERRIDING
-				Configuration.OverrideVelocity,
-				Configuration.bUseOverrideVelocity
-#endif
-			});
-			
-			++NumSpawned;
-		}
-		EntityColors.Push(Configuration.Color);
-		
-#ifdef USE_BASELINE_MODEL
-		const float GoalX = FMath::Clamp(Configuration.Goal.X, 0, BaselineCrowdSimParams.WorldSpan);
-		const float GoalY = FMath::Clamp(Configuration.Goal.Y, 0, BaselineCrowdSimParams.WorldSpan);
-#else
-		const float GoalX = FMath::Clamp(Configuration.Goal.X, 0, EnhancedCrowdSimParams.WorldSpan);
-		const float GoalY = FMath::Clamp(Configuration.Goal.Y, 0, EnhancedCrowdSimParams.WorldSpan);
-#endif
-		Simulator.RegisterGoal(GroupID, {GoalX, GoalY});
-		++GroupID;
-	}
-}
-
 void ASimulationActor::Tick(const float DeltaSeconds)
 {
 	Super::Tick(DeltaSeconds);
@@ -122,8 +122,109 @@ void ASimulationActor::Tick(const float DeltaSeconds)
 	{
 		Simulator.Update(Entities, DeltaSeconds);
 		Simulator.CrowdAdvection(Entities, DeltaSeconds);
+		
+		if (bShouldCollectMetrics)
+		{
+			CollectMetrics();
+		}
 	}
 	DrawDebugGraphics(DeltaSeconds);
+}
+
+void ASimulationActor::CollectMetrics()
+{
+	Metric_Positions.Push({});
+	Metric_Distance.Push({});
+	Metric_InterPedDistance.Push({});
+	
+	for (int Index = 0; Index < Entities.Num(); ++Index)
+	{
+		const FTCEntity& Entity = Entities[Index];
+		if (Metric_Positions.Last().IsValidIndex(Index))
+		{
+			Metric_Distance.Last().Push(FVector2f::Distance(Entity.Position, Metric_Positions.Last()[Index]));
+		}
+		else
+		{
+			Metric_Distance.Last().Push(0.0f);
+		}
+		Metric_Positions.Last().Push(Entity.Position);
+		
+		float TotalInterPedDistance = 0;
+		for (int OtherIndex = 0; OtherIndex < Entities.Num(); ++OtherIndex)
+		{
+			if (OtherIndex == Index)
+			{
+				continue;
+			}
+			TotalInterPedDistance += FVector2f::Distance(Entity.Position, Entities[OtherIndex].Position);
+		}
+		
+		Metric_InterPedDistance.Last().Push(TotalInterPedDistance);
+	}
+	
+	for (float& InterPedDistance : Metric_InterPedDistance.Last())
+	{
+		InterPedDistance /= Metric_InterPedDistance.Last().Num();
+	}
+}
+
+void ASimulationActor::StartCollectingMetrics()
+{
+	bShouldCollectMetrics = true;
+}
+
+void ASimulationActor::StopAndSaveMetrics()
+{
+	bShouldCollectMetrics = false;
+	
+	const FString FilePath = FPaths::ProjectDir() + TestName + TEXT(".txt");
+	FString Output;
+	
+	// Positions
+	{
+		Output += TEXT("Metric_Positions\n");
+		for (int Frame = 0; Frame < Metric_Positions.Num(); ++Frame)
+		{
+			const TArray<FVector2f>& Positions = Metric_Positions[Frame];
+			for (int Index = 0; Index < Positions.Num(); ++Index)
+			{
+				Output += FString::Printf(TEXT("%d:%d:%s\n"), Frame, Index, *Positions[Index].ToString());
+			}
+		}
+	}
+	
+	// Distance travelled
+	{
+		Output += TEXT("Metric_Distance\n");
+		for (int Frame = 0; Frame < Metric_Distance.Num(); ++Frame)
+		{
+			const TArray<float>& Distances = Metric_Distance[Frame];
+			for (int Index = 0; Index < Distances.Num(); ++Index)
+			{
+				Output += FString::Printf(TEXT("%d:%d:%f\n"), Frame, Index, Distances[Index]);
+			}
+		}
+	}
+	
+	// Inter-pedestrian distance
+	{
+		Output += TEXT("Metric_InterPedDistance\n");
+		for (int Frame = 0; Frame < Metric_InterPedDistance.Num(); ++Frame)
+		{
+			const TArray<float>& Distances = Metric_InterPedDistance[Frame];
+			for (int Index = 0; Index < Distances.Num(); ++Index)
+			{
+				Output += FString::Printf(TEXT("%d:%d:%f\n"), Frame, Index, Distances[Index]);
+			}
+		}
+	}
+	
+	Metric_Positions.Reset();
+	Metric_Distance.Reset();
+	Metric_InterPedDistance.Reset();
+	
+	FFileHelper::SaveStringToFile(Output, *FilePath);
 }
 
 void ASimulationActor::SetUpdateEnabled(const bool bValue)
