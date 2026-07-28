@@ -4,7 +4,9 @@
 
 #include "CoreMinimal.h"
 #include "GameFramework/Actor.h"
-#include "Simulation/Simulator.h"
+#include "StructUtils/InstancedStruct.h"
+#include "TrafficChaos/BaselineContinuumCrowdSimulator/BaselineContinuumCrowdSimulator.h"
+#include "TrafficChaos/FastContinuumCrowdSimulator/FastContinuumCrowdSimulator.h"
 #include "SimulationActor.generated.h"
 
 USTRUCT(BlueprintType)
@@ -129,10 +131,10 @@ private:
 	int32 RandomSeed = 0;
 	
 	UPROPERTY(EditAnywhere, DisplayName = "Baseline Continuum Crowds")
-	FTCBaselineSimulationParameters BaselineCrowdSimParams;
+	TInstancedStruct<FTCSimulationParameters> BaselineCrowdSimParams;
 	
 	UPROPERTY(EditAnywhere, DisplayName = "Enhanced Continuum Crowds")
-	FTCSimulationParameters EnhancedCrowdSimParams;
+	TInstancedStruct<FTCSimulationParameters> FastCrowdSimParams;
 	
 	UPROPERTY(EditAnywhere, DisplayName = "Social Force Model")
 	FTCSocialForceParameters SocialForceParams;
@@ -154,7 +156,9 @@ private:
 	
 private:
 	
-	TCSimulator Simulator;
+	TSharedPtr<TCSimulatorBase> BaselineSimulator;
+	TSharedPtr<TCSimulatorBase> FastSimulator;
+	
 	TArray<FTCEntity> Entities;
 	TArray<FColor> EntityColors;
 	bool bIsUpdateEnabled = true;
