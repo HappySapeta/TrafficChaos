@@ -72,12 +72,6 @@ USTRUCT()
 struct FTCSimulationParameters
 {
 	GENERATED_BODY();
-	
-	UPROPERTY(EditAnywhere, meta = (ClampMin = 1, ClampMax = 100, UIMin = 1, UIMax = 100))
-	int GridResolution = 1;
-	
-	UPROPERTY(EditAnywhere, meta = (ClampMin = 1, UIMin = 1))
-	float WorldSpan = 1;
 };
 
 class TCSimulatorBase
@@ -86,7 +80,7 @@ public:
 	
 	virtual ~TCSimulatorBase() = default;
 	
-	virtual void Initialize(const float NewWorldSpan, const int NewResolution, const int NewNumGroups) = 0;
+	virtual void Initialize(const float NewWorldSpan, const int NewResolution, const int NewNumGroups, const TInstancedStruct<FTCSimulationParameters> Parameters, const FTCSocialForceParameters& SocialForceParameters) = 0;
 	virtual void MoveEntites(TArray<FTCEntity>& Entities, const float DeltaTime) = 0;
 	virtual void UpdateSimulation(const TArray<FTCEntity>& Entities, const float DeltaTime) = 0;
 	virtual void RegisterGoal(const int GroupID, const FVector2f& WorldLocation) = 0;

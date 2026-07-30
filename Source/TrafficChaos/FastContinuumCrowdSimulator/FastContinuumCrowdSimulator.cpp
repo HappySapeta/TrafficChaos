@@ -6,7 +6,12 @@
 
 constexpr float MAX_COST = TNumericLimits<float>::Max();
 
-void TCFastContinuumCrowdSimulator::Initialize(const float NewWorldSpan, const int NewResolution, const int NewNumGroups)
+void TCFastContinuumCrowdSimulator::Initialize
+(
+	const float NewWorldSpan, const int NewResolution, const int NewNumGroups, 
+	const TInstancedStruct<FTCSimulationParameters>
+	Parameters, const FTCSocialForceParameters& SocialForceParameters
+)
 {
 	ImplicitGrid.Initialize(FFloatRange(0, NewWorldSpan), NewResolution);
 	Field.Initialize(NewResolution, NewWorldSpan, {});
@@ -23,8 +28,9 @@ void TCFastContinuumCrowdSimulator::Initialize(const float NewWorldSpan, const i
 		Cell->PotentialGradient.Init({}, NewNumGroups);
 	};
 	Field.ForEachCellPerform(InitializeCell);
-
 	NumGroups = NewNumGroups;
+	SetSimulationParameters(Parameters);
+	SetAdvectionParameters(SocialForceParameters);
 }
 
 void TCFastContinuumCrowdSimulator::RegisterGoal(const int GroupID, const FVector2f& WorldLocation)

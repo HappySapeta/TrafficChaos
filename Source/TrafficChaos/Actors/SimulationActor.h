@@ -42,6 +42,13 @@ struct FTCSpawnConfiguration
 	bool bUseOverrideVelocity = false;
 };
 
+UENUM()
+enum class ESimulatorType
+{
+	Baseline,
+	Fast
+};
+
 USTRUCT()
 struct FTCDebugSettings
 {
@@ -112,6 +119,8 @@ public:
 	void SetUpdateEnabled(bool bValue);
 
 	virtual void PostEditChangeProperty(struct FPropertyChangedEvent& PropertyChangedEvent) override;
+	void DrawDebugBaseline(float DeltaSeconds);
+	void DrawDebugFast(float DeltaSeconds);
 	
 protected:
 	
@@ -120,49 +129,59 @@ protected:
 private:
 	
 	void CollectMetrics();
-	
 	void SpawnEntities();
-	
-	void DrawDebugGraphics(const float DeltaSeconds);
+	void InitializeSimulator(TSharedPtr<TCSimulatorBase> Simulator, TInstancedStruct<FTCSimulationParameters> Parameters);
 	
 private:
 	
-	UPROPERTY(EditAnywhere)
+	UPROPERTY(EditAnywhere, Category = "Common")
 	int32 RandomSeed = 0;
 	
-	UPROPERTY(EditAnywhere, DisplayName = "Baseline Continuum Crowds")
-	TInstancedStruct<FTCSimulationParameters> BaselineCrowdSimParams;
+	UPROPERTY(EditAnywhere, Category = "Common")
+	ESimulatorType SimulatorType = ESimulatorType::Fast; 
 	
-	UPROPERTY(EditAnywhere, DisplayName = "Enhanced Continuum Crowds")
-	TInstancedStruct<FTCSimulationParameters> FastCrowdSimParams;
 	
-	UPROPERTY(EditAnywhere, DisplayName = "Social Force Model")
-	FTCSocialForceParameters SocialForceParams;
+	UPROPERTY(EditAnywhere, Category = "Common")
+	float WorldSpan = 10.0f;
 	
-	UPROPERTY(EditAnywhere)
+	UPROPERTY(EditAnywhere, Category = "Common")
+	int Resolution = 2;
+	
+	UPROPERTY(EditAnywhere, Category = "Common")
 	TArray<FTCSpawnConfiguration> SpawnConfigurations;
 	
-	UPROPERTY(EditAnywhere)
+	UPROPERTY(EditAnywhere, Category = "Common")
 	TArray<FVector2f> WallConfigurations;
 	
-	UPROPERTY(EditAnywhere)
+	UPROPERTY(EditAnywhere, Category = "Common") 
 	TArray<FTCDiscomfortZone> DiscomfortZones;
 	
-	UPROPERTY(EditAnywhere, DisplayName = "Debug Settings")
+	UPROPERTY(EditAnywhere, Category = "Debug")
 	FTCDebugSettings DebugSettings;
 	
-	UPROPERTY(EditAnywhere)
-	FString TestName = TEXT("Default");
+	UPROPERTY(EditAnywhere, Category = "Simulation Settings")
+	TInstancedStruct<FTCSimulationParameters> BaselineCrowdSimParams;
 	
-private:
+	UPROPERTY(EditAnywhere, Category = "Simulation Settings")
+	TInstancedStruct<FTCSimulationParameters> FastCrowdSimParams;
 	
-	TSharedPtr<TCSimulatorBase> BaselineSimulator;
-	TSharedPtr<TCSimulatorBase> FastSimulator;
+	UPROPERTY(EditAnywhere, Category = "Simulation Settings")
+	FTCSocialForceParameters SocialForceParams;
+	
+private: // Simulators
+	
+	TSharedPtr<TCBaselineContinuumCrowdSimulator> BaselineSimulator;
+	TSharedPtr<TCFastContinuumCrowdSimulator> FastSimulator;
+	TWeakPtr<TCSimulatorBase> CurrentSimulator;
+	
+private: // Entities
 	
 	TArray<FTCEntity> Entities;
 	TArray<FColor> EntityColors;
 	bool bIsUpdateEnabled = true;
 	FRandomStream RandomStream;
+	
+private: // Metrics
 	
 	TArray<TArray<FVector2f>> Metric_Positions;
 	TArray<TArray<float>> Metric_Distance;

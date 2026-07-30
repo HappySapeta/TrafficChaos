@@ -76,7 +76,7 @@ public:
 	
 public:
 	
-	virtual void Initialize(const float NewWorldSpan, const int NewResolution, const int NewNumGroups) override;
+	virtual void Initialize(const float NewWorldSpan, const int NewResolution, const int NewNumGroups, const TInstancedStruct<FTCSimulationParameters> Parameters, const FTCSocialForceParameters& SocialForceParameters) override;
 	virtual void MoveEntites(TArray<FTCEntity>& Entities, const float DeltaTime) override;
 	virtual void UpdateSimulation(const TArray<FTCEntity>& Entities, const float DeltaTime) override;
 	virtual void RegisterGoal(const int GroupID, const FVector2f& WorldLocation) override;

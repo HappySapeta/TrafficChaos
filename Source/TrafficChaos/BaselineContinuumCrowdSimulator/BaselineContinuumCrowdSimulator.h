@@ -40,11 +40,11 @@ struct FTCBaselineSimParameters : public FTCSimulationParameters
 	UPROPERTY(EditAnywhere)
 	double DensityExponent = 1.0f;
 	
-	UPROPERTY(EditAnywhere)
-	int VelocityLookahead = 1;
-	
-	UPROPERTY(EditAnywhere)
+	UPROPERTY(EditAnywhere, meta = (ClampMin = 1, UIMin = 1))
 	int DensityLookahead = 1;
+	
+	UPROPERTY(EditAnywhere, meta = (ClampMin = 1, UIMin = 1))
+	int VelocityLookahead = 1;
 	
 	UPROPERTY(EditAnywhere)
 	float PathCostConstant = 1;
@@ -82,7 +82,7 @@ public:
 	
 public:
 	
-	virtual void Initialize(const float NewWorldSpan, const int NewResolution, const int NewNumGroups) override;
+	virtual void Initialize(const float NewWorldSpan, const int NewResolution, const int NewNumGroups, const TInstancedStruct<FTCSimulationParameters> Parameters, const FTCSocialForceParameters& SocialForceParameters) override;
 	virtual void MoveEntites(TArray<FTCEntity>& Entities, const float DeltaTime) override;
 	virtual void UpdateSimulation(const TArray<FTCEntity>& Entities, const float DeltaTime) override;
 	virtual void RegisterGoal(const int GroupID, const FVector2f& WorldLocation) override;
