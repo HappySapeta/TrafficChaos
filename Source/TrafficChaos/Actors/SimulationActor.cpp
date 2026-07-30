@@ -32,23 +32,21 @@ void ASimulationActor::SpawnEntities()
 		{
 			const float S = UKismetMathLibrary::RandomFloatInRange(0, SpawnRange);
 			const float T = UKismetMathLibrary::RandomFloatInRange(0, 2 * PI);
-			const float X = S * (A * FMath::Cos(T) * FMath::Cos(R) - FMath::Sin(T) * FMath::Sin(R)) + H;
-			const float Y = S * (A * FMath::Cos(T) * FMath::Sin(R) + FMath::Sin(T) * FMath::Cos(R)) + K;
+			const float X = FMath::Clamp(S * (A * FMath::Cos(T) * FMath::Cos(R) - FMath::Sin(T) * FMath::Sin(R)) + H, 0, FastCrowdSimParams.Get<FTCFastSimulationParameters>().WorldSpan);
+			const float Y = FMath::Clamp(S * (A * FMath::Cos(T) * FMath::Sin(R) + FMath::Sin(T) * FMath::Cos(R)) + K, 0, FastCrowdSimParams.Get<FTCFastSimulationParameters>().WorldSpan);
 			
 			const FVector2f NewPosition{X, Y};
 			{
 				const FRpSpatialData<FTCFastCell>& Field = StaticCastSharedPtr<TCFastContinuumCrowdSimulator>(FastSimulator)->GetFieldData();
-				if (!Field.IsValidWorldPosition(NewPosition) || Field.GetDataAt(Field.WorldToGrid(NewPosition))->bIsWall)
+				if (Field.GetDataAt(Field.WorldToGrid(NewPosition))->bIsWall)
 				{
-					++NumSpawned;
 					continue;
 				}
 			}
 			{
 				const FRpSpatialData<FTCBaselineCell>& Field = StaticCastSharedPtr<TCBaselineContinuumCrowdSimulator>(BaselineSimulator)->GetFieldData();
-				if (!Field.IsValidWorldPosition(NewPosition) || Field.GetDataAt(Field.WorldToGrid(NewPosition))->bIsWall)
+				if (Field.GetDataAt(Field.WorldToGrid(NewPosition))->bIsWall)
 				{
-					++NumSpawned;
 					continue;
 				}
 			}
@@ -126,8 +124,8 @@ void ASimulationActor::Tick(const float DeltaSeconds)
 	if (bIsUpdateEnabled)
 	{
 		// TODO : Update both simulators
-		FastSimulator->UpdateSimulation(Entities, DeltaSeconds);
-		FastSimulator->MoveEntites(Entities, DeltaSeconds);
+		BaselineSimulator->UpdateSimulation(Entities, DeltaSeconds);
+		BaselineSimulator->MoveEntites(Entities, DeltaSeconds);
 		
 		if (bShouldCollectMetrics)
 		{
@@ -241,7 +239,7 @@ void ASimulationActor::SetUpdateEnabled(const bool bValue)
 void ASimulationActor::DrawDebugGraphics(const float DeltaSeconds)
 {
 	const UWorld* World = GetWorld();
-	const FRpSpatialData<FTCFastCell>& Field = StaticCastSharedPtr<TCFastContinuumCrowdSimulator>(FastSimulator)->GetFieldData();
+	const FRpSpatialData<FTCBaselineCell>& Field = StaticCastSharedPtr<TCBaselineContinuumCrowdSimulator>(BaselineSimulator)->GetFieldData();
 	
 	// Draw entities.
 	if (DebugSettings.bDrawEntities)
@@ -271,13 +269,13 @@ void ASimulationActor::DrawDebugGraphics(const float DeltaSeconds)
 	if (DebugSettings.bDrawDensityField)
 	{
 		float MaxDensity = TNumericLimits<float>::Min();
-		const auto GetMaxDensity = [&MaxDensity, this](const FTCFastCell* Cell, const FVector2f& Coords)
+		const auto GetMaxDensity = [&MaxDensity, this](const FTCBaselineCell* Cell, const FVector2f& Coords)
 		{
 			if (Cell->bIsWall)
 			{
 				return;
 			}
-			const float& Density = Cell->ByteDensity;
+			const float& Density = Cell->Density;
 			if (Density > MaxDensity)
 			{
 				MaxDensity = Density;
@@ -285,9 +283,9 @@ void ASimulationActor::DrawDebugGraphics(const float DeltaSeconds)
 		};
 		Field.ForEachCellPerform(GetMaxDensity);
 		
-		const auto DrawDensities = [this, World, Field, DeltaSeconds, MaxDensity](const FTCFastCell* Cell, const FVector2f& Coords)
+		const auto DrawDensities = [this, World, Field, DeltaSeconds, MaxDensity](const FTCBaselineCell* Cell, const FVector2f& Coords)
 		{
-			const float& Density = Cell->ByteDensity;
+			const float& Density = Cell->Density;
 			if (Density == 0)
 			{
 				return;
@@ -314,7 +312,7 @@ void ASimulationActor::DrawDebugGraphics(const float DeltaSeconds)
 	if (DebugSettings.bDrawPotentialField)
 	{
 		float MaxPotential = TNumericLimits<float>::Min();
-		const auto GetMaxPotential = [&MaxPotential, this](const FTCFastCell* Cell, const FVector2f& Coords)
+		const auto GetMaxPotential = [&MaxPotential, this](const FTCBaselineCell* Cell, const FVector2f& Coords)
 		{
 			if (Cell->bIsWall)
 			{
@@ -329,7 +327,7 @@ void ASimulationActor::DrawDebugGraphics(const float DeltaSeconds)
 		};
 		
 		Field.ForEachCellPerform(GetMaxPotential);
-		const auto DrawPotential = [this, World, Field, MaxPotential](const FTCFastCell* Cell, const FVector2f& Coords)
+		const auto DrawPotential = [this, World, Field, MaxPotential](const FTCBaselineCell* Cell, const FVector2f& Coords)
 		{
 			const float NormPotential = Cell->Potential[DebugSettings.DebugGroupID] / MaxPotential;
 			
@@ -347,16 +345,16 @@ void ASimulationActor::DrawDebugGraphics(const float DeltaSeconds)
 	// Debug VelocityField.
 	if (DebugSettings.bDrawCellVelocityField)
 	{
-		const auto DrawVelocties = [this, World, Field](const FTCFastCell* Cell, const FVector2f& Coords) -> void
+		const auto DrawVelocties = [this, World, Field](const FTCBaselineCell* Cell, const FVector2f& Coords) -> void
 		{
-			if (Cell->Direction == EDirectionIndex::NONE)
+			if (Cell->Velocity.IsNearlyZero())
 			{
 				return;
 			}
 			
 			const float CellSize = Field.GetCellSize(); 
 			const FVector2f WorldLocation = Field.GridToWorld(Coords);
-			const FVector2f Direction = DIRECTION_OFFSETS[Cell->Direction].GetSafeNormal();
+			const FVector2f Direction = Cell->Velocity.GetSafeNormal();
 			const FVector LineStart = {WorldLocation.X, WorldLocation.Y, 0};
 			const FVector LineEnd = {WorldLocation.X + Direction.X * CellSize / 2, WorldLocation.Y + Direction.Y * CellSize / 2, 0};
 			DrawDebugLine(World, LineStart, LineStart, FColor::Purple, false, -1, 0, 7.0f);
@@ -368,7 +366,7 @@ void ASimulationActor::DrawDebugGraphics(const float DeltaSeconds)
 	// Debug DesiredVelocityField.
 	if (DebugSettings.bDrawDesiredVelocityField)
 	{
-		const auto DrawVelocties = [this, World, Field](const FTCFastCell* Cell, const FVector2f& Coords) -> void
+		const auto DrawVelocties = [this, World, Field](const FTCBaselineCell* Cell, const FVector2f& Coords) -> void
 		{
 			if (Cell->DesiredVelocity[DebugSettings.DebugGroupID].IsNearlyZero())
 			{
@@ -389,7 +387,7 @@ void ASimulationActor::DrawDebugGraphics(const float DeltaSeconds)
 	
 	if (DebugSettings.bDrawWalls)
 	{
-		const auto DrawWall = [World, Field](const FTCFastCell* Cell, const FVector2f& Coords)
+		const auto DrawWall = [World, Field](const FTCBaselineCell* Cell, const FVector2f& Coords)
 		{
 			if (Cell->bIsWall)
 			{
@@ -406,7 +404,7 @@ void ASimulationActor::DrawDebugGraphics(const float DeltaSeconds)
 	
 	if (DebugSettings.bDrawGrid)
 	{
-		const auto DrawBox = [World, Field](const FTCFastCell* Cell, const FVector2f& Coords)
+		const auto DrawBox = [World, Field](const FTCBaselineCell* Cell, const FVector2f& Coords)
 		{
 			const float DebugBoxExtent = Field.GetCellSize();
 			const FVector2f WorldCoords = Field.GridToWorld(Coords);
@@ -420,7 +418,7 @@ void ASimulationActor::DrawDebugGraphics(const float DeltaSeconds)
 	
 	if (DebugSettings.bDrawDiscomfortZones)
 	{
-		const auto DrawWall = [World, Field](const FTCFastCell* Cell, const FVector2f& Coords)
+		const auto DrawWall = [World, Field](const FTCBaselineCell* Cell, const FVector2f& Coords)
 		{
 			if (Cell->Discomfort != 0)
 			{
