@@ -1,7 +1,7 @@
 // Copyright Anupam Sahu. All Rights Reserved.
 #pragma once
 
-#define ENABLE_VELOCITY_OVERRIDING
+//#define ENABLE_VELOCITY_OVERRIDING
 
 #include "CoreMinimal.h"
 #include "SocialForceModel.h"
