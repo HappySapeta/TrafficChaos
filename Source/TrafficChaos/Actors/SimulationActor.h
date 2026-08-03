@@ -118,9 +118,10 @@ private:
 	
 	void InitialiseSimulation();
 	void StartSimulator();
-	void Simulate();
+	void Simulate(float DeltaSeconds);
 	void PlayVisualisation();
 	void CollectMetrics();
+	void ResetMetrics();
 	void InitialiseEntityStartLocations();
 	void DrawDebugBaseline();
 	void DrawDebugFast();
@@ -184,7 +185,6 @@ private: // Simulators
 private: // Simulation
 	
 	TArray<TArray<TPair<FVector2f, int>>> SimulationCache;
-	FTimerHandle SimTimerHandle;
 	FTimerHandle VizTimerHandle;
 	float ElapsedSimTime = 0;
 	int VisualisationFrameIndex = 0;
@@ -201,4 +201,9 @@ private: // Metrics
 	TArray<TArray<FVector2f>> Metric_Positions;
 	TArray<TArray<float>> Metric_Distance;
 	TArray<TArray<float>> Metric_InterPedDistance;
+	
+private: // Simulated Annealing
+	
+	TInstancedStruct<FTCSimulationParameters> BaselineCrowdSimParamsCopy;
+	TInstancedStruct<FTCSimulationParameters> FastCrowdSimParamsCopy;
 };

@@ -14,6 +14,9 @@ ASimulationActor::ASimulationActor()
 	BaselineSimulator = MakeShared<TCBaselineContinuumCrowdSimulator>();
 	FastSimulator = MakeShared<TCFastContinuumCrowdSimulator>();
 	CurrentSimulator = FastSimulator;
+	
+	BaselineCrowdSimParamsCopy = BaselineCrowdSimParams;
+	FastCrowdSimParamsCopy = FastCrowdSimParams;
 }
 
 void ASimulationActor::InitialiseSimulation()
@@ -52,17 +55,19 @@ void ASimulationActor::StartSimulator()
 {
 	if (const UWorld* World = GetWorld())
 	{
-		World->GetTimerManager().ClearTimer(SimTimerHandle);
 		World->GetTimerManager().ClearTimer(VizTimerHandle);
 		SimulationCache.Reset();
 		ElapsedSimTime = 0;
 		
 		UKismetMathLibrary::SetRandomStreamSeed(RandomStream, RandomSeed);
 		InitialiseSimulation();
+		ResetMetrics();
 		
-		FTimerDelegate TimerDelegate;
-		TimerDelegate.BindUObject(this, &ASimulationActor::Simulate);
-		World->GetTimerManager().SetTimer(SimTimerHandle, TimerDelegate, SimulationTimeStep, true);
+		while (ElapsedSimTime < SimulationLength)
+		{
+			Simulate(SimulationTimeStep);
+			ElapsedSimTime += SimulationTimeStep;
+		}
 	}
 }
 
@@ -84,7 +89,6 @@ void ASimulationActor::StopVisualisation()
 	if (const UWorld* World = GetWorld())
 	{
 		VisualisationFrameIndex = 0;
-		World->GetTimerManager().ClearTimer(SimTimerHandle);
 		World->GetTimerManager().ClearTimer(VizTimerHandle);
 	}
 }
@@ -107,21 +111,8 @@ void ASimulationActor::PlayVisualisation()
 	++VisualisationFrameIndex;
 }
 
-void ASimulationActor::Simulate()
+void ASimulationActor::Simulate(const float DeltaSeconds)
 {
-	if (ElapsedSimTime > SimulationLength)
-	{
-		if (const UWorld* World = GetWorld())
-		{
-			World->GetTimerManager().ClearTimer(SimTimerHandle);
-		}
-		return;
-	}
-	else
-	{
-		ElapsedSimTime += SimulationTimeStep;
-	}
-	
 	check(CurrentSimulator.IsValid());
 	SimulationCache.Push({});
 	
@@ -180,6 +171,13 @@ void ASimulationActor::CollectMetrics()
 			InterPedDistance /= Metric_InterPedDistance.Last().Num();
 		}
 	}
+}
+
+void ASimulationActor::ResetMetrics()
+{
+	Metric_Positions.Reset();
+	Metric_Distance.Reset();
+	Metric_InterPedDistance.Reset();
 }
 
 void ASimulationActor::DrawDebugBaseline()
