@@ -100,7 +100,7 @@ private:
 	FRpSpatialData<FTCFastCell> Field;
 	TMap<int, FVector2f> Goals;
 	
-	TArray<FTCFastCell*> Knowns;
+	TSet<FTCFastCell*> Knowns;
 	TDeque<FTCFastCell*> Candidates;
 	
 	FTCFastSimulationParameters SimParameters;

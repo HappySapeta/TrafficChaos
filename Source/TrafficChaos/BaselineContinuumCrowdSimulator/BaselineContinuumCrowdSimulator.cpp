@@ -138,7 +138,7 @@ float TCBaselineContinuumCrowdSimulator::GetFiniteDifferenceApproximation(const 
 		}
 	}
 
-	return FMath::Min(PhiX + Cx, PhiY + Cy);
+	return ((PhiX + Cx) + (PhiY + Cy)) / 2.0f;
 }
 
 FTCCheapestNeighbor TCBaselineContinuumCrowdSimulator::GetCheapestNeighbor
@@ -250,8 +250,8 @@ void TCBaselineContinuumCrowdSimulator::UpdatePotentialField_FM(const int GroupI
 		return A.Potential[GroupID] < B.Potential[GroupID];
 	};
 	
-	Knowns.Empty();
-	Candidates.Empty();
+	Knowns.Reset();
+	Candidates.Reset();
 	
 	FTCBaselineCell* GoalCell = Field.GetDataAt(Field.WorldToGrid(Goals[GroupID]));
 	GoalCell->Potential[GroupID] = 0;

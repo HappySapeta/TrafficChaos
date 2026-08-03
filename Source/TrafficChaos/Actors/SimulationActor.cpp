@@ -7,7 +7,7 @@
 ASimulationActor::ASimulationActor()
 {
 	// Set this actor to call Tick() every frame.  You can turn this off to improve performance if you don't need it.
-	PrimaryActorTick.bCanEverTick = true;
+	PrimaryActorTick.bCanEverTick = false;
 	
 	BaselineCrowdSimParams = TInstancedStruct<FTCBaselineSimParameters>::Make();
 	FastCrowdSimParams = TInstancedStruct<FTCFastSimulationParameters>::Make();
@@ -16,29 +16,10 @@ ASimulationActor::ASimulationActor()
 	CurrentSimulator = FastSimulator;
 }
 
-void ASimulationActor::BeginPlay()
+void ASimulationActor::InitialiseSimulation()
 {
-	Super::BeginPlay();
-	InitializeSimulator(BaselineSimulator, BaselineCrowdSimParams);
-	InitializeSimulator(FastSimulator, FastCrowdSimParams);
-
-	switch (SimulatorType)
-	{
-		case ESimulatorType::Baseline:
-		{
-			CurrentSimulator = BaselineSimulator;
-			break;
-		}
-		case ESimulatorType::Fast:
-		{
-			CurrentSimulator = FastSimulator;
-			break;
-		}
-		default:
-			UE_LOG(LogTemp, Fatal, TEXT("Unknown simulator type."));
-	}
-	
-	UKismetMathLibrary::SetRandomStreamSeed(RandomStream, RandomSeed);
+	BaselineSimulator->Initialize(WorldSpan, Resolution, SpawnConfigurations.Num(), BaselineCrowdSimParams, SocialForceParams);
+	FastSimulator->Initialize(WorldSpan, Resolution, SpawnConfigurations.Num(), FastCrowdSimParams, SocialForceParams);
 	
 	for (const FVector2f& WallCoords : WallConfigurations)
 	{
@@ -52,207 +33,156 @@ void ASimulationActor::BeginPlay()
 		FastSimulator->RegisterDiscomfort(Zone.Coords, Zone.Amount);
 	}
 	
-	SpawnEntities();
+	InitialiseEntityStartLocations();
 }
 
-void ASimulationActor::InitializeSimulator(TSharedPtr<TCSimulatorBase> Simulator, const TInstancedStruct<FTCSimulationParameters> Parameters)
+void ASimulationActor::SimulateFast()
 {
-	check(Simulator);
-	Simulator->Initialize(WorldSpan, Resolution, SpawnConfigurations.Num(), Parameters, SocialForceParams);
+	CurrentSimulator = FastSimulator;
+	StartSimulator();
 }
 
-void ASimulationActor::Tick(const float DeltaSeconds)
+void ASimulationActor::SimulateBaseline()
 {
-	check(CurrentSimulator.IsValid());
-	Super::Tick(DeltaSeconds);
-	if (bIsUpdateEnabled)
+	CurrentSimulator = BaselineSimulator;
+	StartSimulator();
+}
+
+void ASimulationActor::StartSimulator()
+{
+	if (const UWorld* World = GetWorld())
 	{
-		// TODO : Update both simulators
-		CurrentSimulator.Pin()->UpdateSimulation(Entities, DeltaSeconds);
-		CurrentSimulator.Pin()->MoveEntites(Entities, DeltaSeconds);
+		World->GetTimerManager().ClearTimer(SimTimerHandle);
+		World->GetTimerManager().ClearTimer(VizTimerHandle);
+		SimulationCache.Reset();
+		ElapsedSimTime = 0;
 		
-		if (bShouldCollectMetrics)
-		{
-			CollectMetrics();
-		}
+		UKismetMathLibrary::SetRandomStreamSeed(RandomStream, RandomSeed);
+		InitialiseSimulation();
+		
+		FTimerDelegate TimerDelegate;
+		TimerDelegate.BindUObject(this, &ASimulationActor::Simulate);
+		World->GetTimerManager().SetTimer(SimTimerHandle, TimerDelegate, SimulationTimeStep, true);
+	}
+}
+
+void ASimulationActor::StartVisualisation()
+{
+	if (const UWorld* World = GetWorld())
+	{
+		World->GetTimerManager().ClearTimer(VizTimerHandle);
+		VisualisationFrameIndex = 0;
+		
+		FTimerDelegate TimerDelegate;
+		TimerDelegate.BindUObject(this, &ASimulationActor::PlayVisualisation);
+		World->GetTimerManager().SetTimer(VizTimerHandle, TimerDelegate, SimulationTimeStep / VisualisationPlaybackRate, true);
+	}
+}
+
+void ASimulationActor::StopVisualisation()
+{
+	if (const UWorld* World = GetWorld())
+	{
+		VisualisationFrameIndex = 0;
+		World->GetTimerManager().ClearTimer(SimTimerHandle);
+		World->GetTimerManager().ClearTimer(VizTimerHandle);
+	}
+}
+
+void ASimulationActor::PlayVisualisation()
+{
+	if (VisualisationFrameIndex >= SimulationCache.Num())
+	{
+		StopVisualisation();
+		return;
 	}
 	
-	switch (SimulatorType)
+	const TArray<TPair<FVector2f, int>>& Frame = SimulationCache[VisualisationFrameIndex];
+	for (const auto& Entity : Frame)
 	{
-		case ESimulatorType::Baseline:
-		{
-			DrawDebugBaseline(DeltaSeconds);
-			break;
-		}
-		case ESimulatorType::Fast:
-		{
-			DrawDebugFast(DeltaSeconds);
-			break;
-		}
-		default:
-			break;
+		const FVector2f& Position = Entity.Get<0>();
+		const FColor Color = EntityColors[Entity.Get<1>()];
+		DrawDebugSphere(GetWorld(), {Position.X, Position.Y, 0.0f}, 25.0f, 10, Color, false, SimulationTimeStep / VisualisationPlaybackRate);
 	}
+	++VisualisationFrameIndex;
 }
 
-void ASimulationActor::SpawnEntities()
+void ASimulationActor::Simulate()
 {
-	int GroupID = 0;
-	for (const FTCSpawnConfiguration& Configuration : SpawnConfigurations)
+	if (ElapsedSimTime > SimulationLength)
 	{
-		const float& SpawnRange = Configuration.SpawnRange;
-		const float& H = Configuration.Origin.X;
-		const float& K = Configuration.Origin.Y;
-		const float& A = Configuration.SpawnAreaWidth;
-		const float& R = Configuration.Rotation;
-		int NumSpawned = 0;
-		while (NumSpawned < Configuration.Amount)
+		if (const UWorld* World = GetWorld())
 		{
-			const float S = UKismetMathLibrary::RandomFloatInRange(0, SpawnRange);
-			const float T = UKismetMathLibrary::RandomFloatInRange(0, 2 * PI);
-			const float X = FMath::Clamp(S * (A * FMath::Cos(T) * FMath::Cos(R) - FMath::Sin(T) * FMath::Sin(R)) + H, 0, WorldSpan);
-			const float Y = FMath::Clamp(S * (A * FMath::Cos(T) * FMath::Sin(R) + FMath::Sin(T) * FMath::Cos(R)) + K, 0, WorldSpan);
-			
-			const FVector2f NewPosition{X, Y};
-			{
-				const FRpSpatialData<FTCFastCell>& Field = StaticCastSharedPtr<TCFastContinuumCrowdSimulator>(FastSimulator)->GetFieldData();
-				if (Field.GetDataAt(Field.WorldToGrid(NewPosition))->bIsWall)
-				{
-					continue;
-				}
-			}
-			{
-				const FRpSpatialData<FTCBaselineCell>& Field = StaticCastSharedPtr<TCBaselineContinuumCrowdSimulator>(BaselineSimulator)->GetFieldData();
-				if (Field.GetDataAt(Field.WorldToGrid(NewPosition))->bIsWall)
-				{
-					continue;
-				}
-			}
-
-			Entities.Push
-			({
-				NewPosition, FVector2f{FVector2f::ZeroVector},
-				GroupID,
-#ifdef ENABLE_VELOCITY_OVERRIDING
-				Configuration.OverrideVelocity,
-				Configuration.bUseOverrideVelocity
-#endif
-			});
-			
-			++NumSpawned;
+			World->GetTimerManager().ClearTimer(SimTimerHandle);
 		}
-		EntityColors.Push(Configuration.Color);
-		
-		const float GoalX = FMath::Clamp(Configuration.Goal.X, 0, WorldSpan);
-		const float GoalY = FMath::Clamp(Configuration.Goal.Y, 0, WorldSpan);
-		BaselineSimulator->RegisterGoal(GroupID, {GoalX, GoalY});
-		FastSimulator->RegisterGoal(GroupID, {GoalX, GoalY});
-		
-		++GroupID;
+		return;
+	}
+	else
+	{
+		ElapsedSimTime += SimulationTimeStep;
+	}
+	
+	check(CurrentSimulator.IsValid());
+	SimulationCache.Push({});
+	
+	CurrentSimulator.Pin()->UpdateSimulation(Entities, SimulationTimeStep);
+	CurrentSimulator.Pin()->MoveEntites(Entities, SimulationTimeStep);
+	
+	for (const FTCEntity& Entity : Entities)
+	{
+		SimulationCache.Last().Push({Entity.Position, Entity.GroupID});
+	}
+	
+	if (bShouldCaptureMetrics)
+	{
+		CollectMetrics();
 	}
 }
 
 void ASimulationActor::CollectMetrics()
 {
-	Metric_Positions.Push({});
-	Metric_Distance.Push({});
-	Metric_InterPedDistance.Push({});
-	
 	for (int Index = 0; Index < Entities.Num(); ++Index)
 	{
 		const FTCEntity& Entity = Entities[Index];
-		if (Metric_Positions.Last().IsValidIndex(Index))
+		if (bShouldCapturePositions)
 		{
-			Metric_Distance.Last().Push(FVector2f::Distance(Entity.Position, Metric_Positions.Last()[Index]));
-		}
-		else
-		{
-			Metric_Distance.Last().Push(0.0f);
-		}
-		Metric_Positions.Last().Push(Entity.Position);
-		
-		float TotalInterPedDistance = 0;
-		for (int OtherIndex = 0; OtherIndex < Entities.Num(); ++OtherIndex)
-		{
-			if (OtherIndex == Index)
+			if (Metric_Positions.Last().IsValidIndex(Index))
 			{
-				continue;
+				Metric_Distance.Last().Push(FVector2f::Distance(Entity.Position, Metric_Positions.Last()[Index]));
 			}
-			TotalInterPedDistance += FVector2f::Distance(Entity.Position, Entities[OtherIndex].Position);
+			else
+			{
+				Metric_Distance.Last().Push(0.0f);
+			}
+			Metric_Positions.Last().Push(Entity.Position);
 		}
 		
-		Metric_InterPedDistance.Last().Push(TotalInterPedDistance);
+		if (bShouldCaptureDistances)
+		{
+			float TotalInterPedDistance = 0;
+			for (int OtherIndex = 0; OtherIndex < Entities.Num(); ++OtherIndex)
+			{
+				if (OtherIndex == Index)
+				{
+					continue;
+				}
+				TotalInterPedDistance += FVector2f::Distance(Entity.Position, Entities[OtherIndex].Position);
+			}
+		
+			Metric_InterPedDistance.Last().Push(TotalInterPedDistance);
+		}
 	}
 	
-	for (float& InterPedDistance : Metric_InterPedDistance.Last())
+	if (bShouldCaptureDistances)
 	{
-		InterPedDistance /= Metric_InterPedDistance.Last().Num();
+		for (float& InterPedDistance : Metric_InterPedDistance.Last())
+		{
+			InterPedDistance /= Metric_InterPedDistance.Last().Num();
+		}
 	}
 }
 
-void ASimulationActor::StartCollectingMetrics()
-{
-	bShouldCollectMetrics = true;
-}
-
-void ASimulationActor::StopAndSaveMetrics()
-{
-	bShouldCollectMetrics = false;
-	
-	//const FString FilePath = FPaths::ProjectDir() + TestName + TEXT(".txt");
-	//FString Output;
-	//
-	//// Positions
-	//{
-	//	Output += TEXT("Metric_Positions\n");
-	//	for (int Frame = 0; Frame < Metric_Positions.Num(); ++Frame)
-	//	{
-	//		const TArray<FVector2f>& Positions = Metric_Positions[Frame];
-	//		for (int Index = 0; Index < Positions.Num(); ++Index)
-	//		{
-	//			Output += FString::Printf(TEXT("%d:%d:%s\n"), Frame, Index, *Positions[Index].ToString());
-	//		}
-	//	}
-	//}
-	//
-	//// Distance travelled
-	//{
-	//	Output += TEXT("Metric_Distance\n");
-	//	for (int Frame = 0; Frame < Metric_Distance.Num(); ++Frame)
-	//	{
-	//		const TArray<float>& Distances = Metric_Distance[Frame];
-	//		for (int Index = 0; Index < Distances.Num(); ++Index)
-	//		{
-	//			Output += FString::Printf(TEXT("%d:%d:%f\n"), Frame, Index, Distances[Index]);
-	//		}
-	//	}
-	//}
-	//
-	//// Inter-pedestrian distance
-	//{
-	//	Output += TEXT("Metric_InterPedDistance\n");
-	//	for (int Frame = 0; Frame < Metric_InterPedDistance.Num(); ++Frame)
-	//	{
-	//		const TArray<float>& Distances = Metric_InterPedDistance[Frame];
-	//		for (int Index = 0; Index < Distances.Num(); ++Index)
-	//		{
-	//			Output += FString::Printf(TEXT("%d:%d:%f\n"), Frame, Index, Distances[Index]);
-	//		}
-	//	}
-	//}
-	//
-	//Metric_Positions.Reset();
-	//Metric_Distance.Reset();
-	//Metric_InterPedDistance.Reset();
-	//
-	//FFileHelper::SaveStringToFile(Output, *FilePath);
-}
-
-void ASimulationActor::SetUpdateEnabled(const bool bValue)
-{
-	bIsUpdateEnabled = bValue;
-}
-
-void ASimulationActor::DrawDebugBaseline(const float DeltaSeconds)
+void ASimulationActor::DrawDebugBaseline()
 {
 	const UWorld* World = GetWorld();
 	const FRpSpatialData<FTCBaselineCell>& Field = StaticCastSharedPtr<TCBaselineContinuumCrowdSimulator>(BaselineSimulator)->GetFieldData();
@@ -299,7 +229,7 @@ void ASimulationActor::DrawDebugBaseline(const float DeltaSeconds)
 		};
 		Field.ForEachCellPerform(GetMaxDensity);
 		
-		const auto DrawDensities = [this, World, Field, DeltaSeconds, MaxDensity](const FTCBaselineCell* Cell, const FVector2f& Coords)
+		const auto DrawDensities = [this, World, Field, MaxDensity](const FTCBaselineCell* Cell, const FVector2f& Coords)
 		{
 			const float& Density = Cell->Density;
 			if (Density == 0)
@@ -318,7 +248,7 @@ void ASimulationActor::DrawDebugBaseline(const float DeltaSeconds)
 			
 			const FString String = FString::Printf(TEXT("%.2f"), Density);
 			const FVector StringLocation = {WorldCoords.X + DebugBoxExtent / 2, WorldCoords.Y + DebugBoxExtent / 2, 0.0f}; 
-			DrawDebugString(World, StringLocation , String, this, FColor::White, DeltaSeconds);
+			DrawDebugString(World, StringLocation , String, this, FColor::White, SimulationTimeStep);
 		};
 	
 		Field.ForEachCellPerform(DrawDensities);
@@ -450,7 +380,7 @@ void ASimulationActor::DrawDebugBaseline(const float DeltaSeconds)
 	}
 }
 
-void ASimulationActor::DrawDebugFast(const float DeltaSeconds)
+void ASimulationActor::DrawDebugFast()
 {
 	const UWorld* World = GetWorld();
 	const FRpSpatialData<FTCFastCell>& Field = StaticCastSharedPtr<TCFastContinuumCrowdSimulator>(FastSimulator)->GetFieldData();
@@ -497,7 +427,7 @@ void ASimulationActor::DrawDebugFast(const float DeltaSeconds)
 		};
 		Field.ForEachCellPerform(GetMaxDensity);
 		
-		const auto DrawDensities = [this, World, Field, DeltaSeconds, MaxDensity](const FTCFastCell* Cell, const FVector2f& Coords)
+		const auto DrawDensities = [this, World, Field, MaxDensity](const FTCFastCell* Cell, const FVector2f& Coords)
 		{
 			const float& Density = Cell->ByteDensity;
 			if (Density == 0)
@@ -516,7 +446,7 @@ void ASimulationActor::DrawDebugFast(const float DeltaSeconds)
 			
 			const FString String = FString::Printf(TEXT("%.2f"), Density);
 			const FVector StringLocation = {WorldCoords.X + DebugBoxExtent / 2, WorldCoords.Y + DebugBoxExtent / 2, 0.0f}; 
-			DrawDebugString(World, StringLocation , String, this, FColor::White, DeltaSeconds);
+			DrawDebugString(World, StringLocation , String, this, FColor::White, SimulationTimeStep);
 		};
 	
 		Field.ForEachCellPerform(DrawDensities);
@@ -645,6 +575,57 @@ void ASimulationActor::DrawDebugFast(const float DeltaSeconds)
 			}
 		};
 		Field.ForEachCellPerform(DrawWall);
+	}
+}
+
+void ASimulationActor::InitialiseEntityStartLocations()
+{
+	Entities.Reset();
+	EntityColors.Reset();
+	int GroupID = 0;
+	for (const FTCSpawnConfiguration& Configuration : SpawnConfigurations)
+	{
+		const float& SpawnRange = Configuration.SpawnRange;
+		const float& H = Configuration.Origin.X;
+		const float& K = Configuration.Origin.Y;
+		const float& A = Configuration.SpawnAreaWidth;
+		const float& R = Configuration.Rotation;
+		int NumSpawned = 0;
+		
+		while (NumSpawned < Configuration.Amount)
+		{
+			const float S = UKismetMathLibrary::RandomFloatInRange(0, SpawnRange);
+			const float T = UKismetMathLibrary::RandomFloatInRange(0, 2 * PI);
+			const float X = FMath::Clamp(S * (A * FMath::Cos(T) * FMath::Cos(R) - FMath::Sin(T) * FMath::Sin(R)) + H, 0, WorldSpan);
+			const float Y = FMath::Clamp(S * (A * FMath::Cos(T) * FMath::Sin(R) + FMath::Sin(T) * FMath::Cos(R)) + K, 0, WorldSpan);
+			
+			const FVector2f NewPosition{X, Y};
+			{
+				const FRpSpatialData<FTCFastCell>& Field = StaticCastSharedPtr<TCFastContinuumCrowdSimulator>(FastSimulator)->GetFieldData();
+				if (Field.GetDataAt(Field.WorldToGrid(NewPosition))->bIsWall)
+				{
+					continue;
+				}
+			}
+			{
+				const FRpSpatialData<FTCBaselineCell>& Field = StaticCastSharedPtr<TCBaselineContinuumCrowdSimulator>(BaselineSimulator)->GetFieldData();
+				if (Field.GetDataAt(Field.WorldToGrid(NewPosition))->bIsWall)
+				{
+					continue;
+				}
+			}
+
+			Entities.Push({NewPosition, FVector2f{FVector2f::ZeroVector}, GroupID});
+			++NumSpawned;
+		}
+		EntityColors.Push(Configuration.Color);
+		
+		const float GoalX = FMath::Clamp(Configuration.Goal.X, 0, WorldSpan);
+		const float GoalY = FMath::Clamp(Configuration.Goal.Y, 0, WorldSpan);
+		BaselineSimulator->RegisterGoal(GroupID, {GoalX, GoalY});
+		FastSimulator->RegisterGoal(GroupID, {GoalX, GoalY});
+		
+		++GroupID;
 	}
 }
 

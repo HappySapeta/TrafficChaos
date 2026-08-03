@@ -42,13 +42,6 @@ struct FTCSpawnConfiguration
 	bool bUseOverrideVelocity = false;
 };
 
-UENUM()
-enum class ESimulatorType
-{
-	Baseline,
-	Fast
-};
-
 USTRUCT()
 struct FTCDebugSettings
 {
@@ -104,75 +97,97 @@ class TRAFFICCHAOS_API ASimulationActor : public AActor
 
 public:
 	
-	// Sets default values for this actor's properties
+	// Sets default values for this actor's properties 
 	ASimulationActor();
-	
-	virtual void Tick(const float DeltaSeconds) override;
-	
-	UFUNCTION(CallInEditor)
-	void StartCollectingMetrics();
-	
-	UFUNCTION(CallInEditor)
-	void StopAndSaveMetrics();
 
-	UFUNCTION(BlueprintCallable)
-	void SetUpdateEnabled(bool bValue);
+	UFUNCTION(CallInEditor, Category = "Commands")
+	void SimulateFast();
+	
+	UFUNCTION(CallInEditor, Category = "Commands")
+	void SimulateBaseline();
 
+	UFUNCTION(CallInEditor, Category = "Commands")
+	void StartVisualisation();
+
+	UFUNCTION(CallInEditor, Category = "Commands")
+	void StopVisualisation();
+	
 	virtual void PostEditChangeProperty(struct FPropertyChangedEvent& PropertyChangedEvent) override;
-	void DrawDebugBaseline(float DeltaSeconds);
-	void DrawDebugFast(float DeltaSeconds);
-	
-protected:
-	
-	virtual void BeginPlay() override;
 	
 private:
 	
+	void InitialiseSimulation();
+	void StartSimulator();
+	void Simulate();
+	void PlayVisualisation();
 	void CollectMetrics();
-	void SpawnEntities();
-	void InitializeSimulator(TSharedPtr<TCSimulatorBase> Simulator, TInstancedStruct<FTCSimulationParameters> Parameters);
+	void InitialiseEntityStartLocations();
+	void DrawDebugBaseline();
+	void DrawDebugFast();
 	
 private:
 	
-	UPROPERTY(EditAnywhere, Category = "Common")
+	UPROPERTY(EditAnywhere, Category = "Simulation Settings")
+	float SimulationTimeStep = 0.1f;
+	
+	UPROPERTY(EditAnywhere, Category = "Simulation Settings")
+	float SimulationLength = 5.0f;
+	
+	UPROPERTY(EditAnywhere, Category = "Simulation Settings", meta = (UIMin = 1.0f, UIMax = 10.0f, ClampMin = 1.0f, ClampMax = 10.0f))
+	float VisualisationPlaybackRate = 1.0f;
+	
+	UPROPERTY(EditAnywhere, Category = "Simulation Settings")
 	int32 RandomSeed = 0;
 	
-	UPROPERTY(EditAnywhere, Category = "Common")
-	ESimulatorType SimulatorType = ESimulatorType::Fast; 
-	
-	
-	UPROPERTY(EditAnywhere, Category = "Common")
+	UPROPERTY(EditAnywhere, Category = "Simulation Settings")
 	float WorldSpan = 10.0f;
 	
-	UPROPERTY(EditAnywhere, Category = "Common")
+	UPROPERTY(EditAnywhere, Category = "Simulation Settings")
 	int Resolution = 2;
 	
-	UPROPERTY(EditAnywhere, Category = "Common")
-	TArray<FTCSpawnConfiguration> SpawnConfigurations;
+	UPROPERTY(EditAnywhere, Category = "Simulation Parameters")
+	TInstancedStruct<FTCSimulationParameters> BaselineCrowdSimParams;
 	
-	UPROPERTY(EditAnywhere, Category = "Common")
+	UPROPERTY(EditAnywhere, Category = "Simulation Parameters")
+	TInstancedStruct<FTCSimulationParameters> FastCrowdSimParams;
+	
+	UPROPERTY(EditAnywhere, Category = "Simulation Parameters")
+	FTCSocialForceParameters SocialForceParams;
+	
+	UPROPERTY(EditAnywhere, Category = "World Configuration")
+	TArray<FTCSpawnConfiguration> SpawnConfigurations;
+
+	UPROPERTY(EditAnywhere, Category = "World Configuration")
 	TArray<FVector2f> WallConfigurations;
 	
-	UPROPERTY(EditAnywhere, Category = "Common") 
+	UPROPERTY(EditAnywhere, Category = "World Configuration") 
 	TArray<FTCDiscomfortZone> DiscomfortZones;
+	
+	UPROPERTY(EditAnywhere, Category = "Metrics")
+	bool bShouldCaptureMetrics = false;
+	
+	UPROPERTY(EditAnywhere, Category = "Metrics", meta = (EditCondition = "bShouldCaptureMetrics"))
+	bool bShouldCaptureDistances = false;
+	
+	UPROPERTY(EditAnywhere, Category = "Metrics", meta = (EditCondition = "bShouldCaptureMetrics"))
+	bool bShouldCapturePositions = false;
 	
 	UPROPERTY(EditAnywhere, Category = "Debug")
 	FTCDebugSettings DebugSettings;
-	
-	UPROPERTY(EditAnywhere, Category = "Simulation Settings")
-	TInstancedStruct<FTCSimulationParameters> BaselineCrowdSimParams;
-	
-	UPROPERTY(EditAnywhere, Category = "Simulation Settings")
-	TInstancedStruct<FTCSimulationParameters> FastCrowdSimParams;
-	
-	UPROPERTY(EditAnywhere, Category = "Simulation Settings")
-	FTCSocialForceParameters SocialForceParams;
 	
 private: // Simulators
 	
 	TSharedPtr<TCBaselineContinuumCrowdSimulator> BaselineSimulator;
 	TSharedPtr<TCFastContinuumCrowdSimulator> FastSimulator;
 	TWeakPtr<TCSimulatorBase> CurrentSimulator;
+	
+private: // Simulation
+	
+	TArray<TArray<TPair<FVector2f, int>>> SimulationCache;
+	FTimerHandle SimTimerHandle;
+	FTimerHandle VizTimerHandle;
+	float ElapsedSimTime = 0;
+	int VisualisationFrameIndex = 0;
 	
 private: // Entities
 	
@@ -186,5 +201,4 @@ private: // Metrics
 	TArray<TArray<FVector2f>> Metric_Positions;
 	TArray<TArray<float>> Metric_Distance;
 	TArray<TArray<float>> Metric_InterPedDistance;
-	bool bShouldCollectMetrics = false;
 };

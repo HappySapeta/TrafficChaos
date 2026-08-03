@@ -240,8 +240,8 @@ void TCFastContinuumCrowdSimulator::UpdatePotentialField(const int GroupID)
 	checkf(Field.IsValidGridCoordinate(GoalCoords), TEXT("Invalid coordinates for goal."));
 
 	// 1. Clear all lists. 
-	Knowns.Empty();
-	Candidates.Empty();
+	Knowns.Reset();
+	Candidates.Reset();
 
 	// 1. Get the goal cell.
 	FTCFastCell* GoalCell = Field.GetDataAt(GoalCoords);
@@ -258,22 +258,18 @@ void TCFastContinuumCrowdSimulator::UpdatePotentialField(const int GroupID)
 		}
 	};
 	Field.ForEachCellPerform(InitializePotential);
-
+ 
 	// 4. BFS
 	while (!Candidates.IsEmpty())
 	{
 		FTCFastCell* Current = Candidates.First();
 		Candidates.PopFirst();
-
-		if (Knowns.Contains(Current))
-		{
-			continue;
-		}
-
+		Knowns.Add(Current);
+		
 		const TArray<FTCNeighbor<FTCFastCell>> Neighbors = GetNeighbors(Current->Coords);
 		for (const auto& [Neighbor, NeighborDirection] : Neighbors)
 		{
-			if (Neighbor->bIsWall)
+			if (Knowns.Contains(Neighbor) || Neighbor->bIsWall)
 			{
 				continue;
 			}
@@ -285,8 +281,6 @@ void TCFastContinuumCrowdSimulator::UpdatePotentialField(const int GroupID)
 				Candidates.PushLast(Neighbor);
 			}
 		}
-
-		Knowns.Add(Current);
 	}
 }
 
@@ -348,12 +342,12 @@ float TCFastContinuumCrowdSimulator::GetFiniteDifferenceApproximation(const FVec
 
 	if (PhiX == MAX_COST && PhiY < MAX_COST)
 	{
-		return Cy + PhiY;
+		return FMath::Sqrt(Cy) + PhiY;
 	}
 
 	if (PhiY == MAX_COST && PhiX < MAX_COST)
 	{
-		return Cx + PhiX;
+		return FMath::Sqrt(Cx) + PhiX;
 	}
 
 	if (PhiY == MAX_COST && PhiX == MAX_COST)
@@ -361,28 +355,22 @@ float TCFastContinuumCrowdSimulator::GetFiniteDifferenceApproximation(const FVec
 		return MAX_COST;
 	}
 
-	const float QuadraticCoeffA = FMath::Square(Cy) + FMath::Square(Cx);
-	const float QuadraticCoeffB = -2 * ((PhiX * FMath::Square(Cy)) + (PhiY * FMath::Square(Cx)));
-	const float QuadraticCoeffC =
-		(FMath::Square(PhiX) * FMath::Square(Cy)) +
-		(FMath::Square(PhiY) * FMath::Square(Cx)) -
-		(FMath::Square(Cx) * FMath::Square(Cy));
+	const float QuadraticCoeffA = Cy + Cx;
+	const float QuadraticCoeffB = -2 * ((PhiX * Cy) + (PhiY * Cx));
+	const float QuadraticCoeffC = (FMath::Square(PhiX) * Cy) + (FMath::Square(PhiY) * Cx) - (Cx * Cy);
 
 	const float TermUnderSqrt = FMath::Square(QuadraticCoeffB) - (4 * QuadraticCoeffA * QuadraticCoeffC);
 	if (TermUnderSqrt >= 0.0f)
 	{
-		const float FirstSolution = (-QuadraticCoeffB + FMath::Sqrt(TermUnderSqrt)) / (2 * QuadraticCoeffA);
-		const float SecondSolution = (-QuadraticCoeffB - FMath::Sqrt(TermUnderSqrt)) / (2 * QuadraticCoeffA);
+		const float ResultPotential = (-QuadraticCoeffB + FMath::Sqrt(TermUnderSqrt)) / (2 * QuadraticCoeffA);
 
-		const float ResultPotential = FMath::Max(FirstSolution, SecondSolution);
-
-		if (ResultPotential > PhiX && ResultPotential > PhiY)
+		if (ResultPotential > FMath::Max(PhiX, PhiY))
 		{
 			return ResultPotential;
 		}
 	}
 
-	return FMath::Min(PhiX + Cx, PhiY + Cy);
+	return ((PhiX + Cx) + (PhiY + Cy)) / 2.0f;
 }
 
 FTCCheapestNeighbor TCFastContinuumCrowdSimulator::GetCheapestNeighbor(const FVector2f& Coords, const EDirectionIndex First, const EDirectionIndex Second, const int GroupID)
@@ -391,6 +379,8 @@ FTCCheapestNeighbor TCFastContinuumCrowdSimulator::GetCheapestNeighbor(const FVe
 	FTCFastCell* FirstNeighbor = Field.GetDataAt(Coords, DIRECTION_OFFSETS[First]);
 	FTCFastCell* SecondNeighbor = Field.GetDataAt(Coords, DIRECTION_OFFSETS[Second]);
 
+	check(CurrentCell)
+	
 	if (FirstNeighbor && !SecondNeighbor)
 	{
 		return {FirstNeighbor->Potential[GroupID], CurrentCell->CostField[GroupID][First]};
