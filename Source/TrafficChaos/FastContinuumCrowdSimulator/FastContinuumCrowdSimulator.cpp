@@ -73,11 +73,13 @@ void TCFastContinuumCrowdSimulator::MoveEntites(TArray<FTCEntity>& Entities, con
 
 	for (int EntityIndex = 0; EntityIndex < Entities.Num(); ++EntityIndex)
 	{
+#ifdef ENABLE_VELOCITY_OVERRIDING
 		if (Entities[EntityIndex].bUseOverrideVelocity)
 		{
 			Entities[EntityIndex].Position += Entities[EntityIndex].OverrideVelocity * TimeStep;
 			continue;
 		}
+#endif
 
 		FVector2f Force = FVector2f::ZeroVector;
 
