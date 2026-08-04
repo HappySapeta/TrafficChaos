@@ -107,8 +107,14 @@ public:
 	void SimulateBaseline();
 
 	UFUNCTION(CallInEditor, Category = "Commands")
-	void StartVisualisation();
-
+	void Evaluate();
+	
+	UFUNCTION(CallInEditor, Category = "Commands")
+	void PlayEvaluationVisualisation();
+	
+	UFUNCTION(CallInEditor, Category = "Commands")
+	void PlayVisualisation();
+	
 	UFUNCTION(CallInEditor, Category = "Commands")
 	void StopVisualisation();
 	
@@ -119,12 +125,10 @@ private:
 	void InitialiseSimulation();
 	void StartSimulator();
 	void Simulate(float DeltaSeconds);
-	void PlayVisualisation();
-	void CollectMetrics();
-	void ResetMetrics();
 	void InitialiseEntityStartLocations();
 	void DrawDebugBaseline();
 	void DrawDebugFast();
+	void MetricCompare(const TArray<FTCEntity>& Reference, const TArray<FTCEntity>& Test);
 	
 private:
 	
@@ -165,13 +169,7 @@ private:
 	TArray<FTCDiscomfortZone> DiscomfortZones;
 	
 	UPROPERTY(EditAnywhere, Category = "Metrics")
-	bool bShouldCaptureMetrics = false;
-	
-	UPROPERTY(EditAnywhere, Category = "Metrics", meta = (EditCondition = "bShouldCaptureMetrics"))
-	bool bShouldCaptureDistances = false;
-	
-	UPROPERTY(EditAnywhere, Category = "Metrics", meta = (EditCondition = "bShouldCaptureMetrics"))
-	bool bShouldCapturePositions = false;
+	bool bNormaliseMetrics = false;
 	
 	UPROPERTY(EditAnywhere, Category = "Debug")
 	FTCDebugSettings DebugSettings;
@@ -184,8 +182,11 @@ private: // Simulators
 	
 private: // Simulation
 	
-	TArray<TArray<TPair<FVector2f, int>>> SimulationCache;
+	TArray<TArray<TPair<FVector2f, int>>> BaselineSimCache;
+	TArray<TArray<TPair<FVector2f, int>>> FastSimCache;
+	TArray<TArray<TPair<FVector2f, int>>> PrimarySimulationCache;
 	FTimerHandle VizTimerHandle;
+	FTimerHandle EvaluationVizTimerHandle;
 	float ElapsedSimTime = 0;
 	int VisualisationFrameIndex = 0;
 	
@@ -198,12 +199,9 @@ private: // Entities
 	
 private: // Metrics
 	
-	TArray<TArray<FVector2f>> Metric_Positions;
-	TArray<TArray<float>> Metric_Distance;
-	TArray<TArray<float>> Metric_InterPedDistance;
-	
-private: // Simulated Annealing
-	
-	TInstancedStruct<FTCSimulationParameters> BaselineCrowdSimParamsCopy;
-	TInstancedStruct<FTCSimulationParameters> FastCrowdSimParamsCopy;
+	float AvgAbsoluteDifferenceMetric = 0.0f;
+	float AvgPathLengthMetric = 0.0f;
+	float AvgInterPedDistanceMetric = 0.0f;
+	TArray<FVector2f> ReferencePreviousPositions;
+	TArray<FVector2f> TestPreviousPositions;
 };
