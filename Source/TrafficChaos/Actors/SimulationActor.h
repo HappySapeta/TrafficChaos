@@ -32,9 +32,6 @@ struct FTCSpawnConfiguration
 	UPROPERTY(EditAnywhere)
 	FColor Color;
 	
-	UPROPERTY(EditAnywhere, meta = (ClampMin = 0, ClampMax = 100, UIMin = 0, UIMax = 100))
-	int Amount = 1;
-	
 	UPROPERTY(EditAnywhere)
 	FVector2f OverrideVelocity;
 	
@@ -100,23 +97,23 @@ public:
 	// Sets default values for this actor's properties 
 	ASimulationActor();
 
-	UFUNCTION(CallInEditor, Category = "Commands")
+	UFUNCTION(CallInEditor, Category = "Simulation Commands")
 	void SimulateFast();
 	
-	UFUNCTION(CallInEditor, Category = "Commands")
+	UFUNCTION(CallInEditor, Category = "Simulation Commands")
 	void SimulateBaseline();
 
-	UFUNCTION(CallInEditor, Category = "Commands")
-	void Evaluate();
-	
-	UFUNCTION(CallInEditor, Category = "Commands")
-	void PlayEvaluationVisualisation();
-	
-	UFUNCTION(CallInEditor, Category = "Commands")
+	UFUNCTION(CallInEditor, Category = "Simulation Commands")
 	void PlayVisualisation();
 	
-	UFUNCTION(CallInEditor, Category = "Commands")
+	UFUNCTION(CallInEditor, Category = "Simulation Commands")
 	void StopVisualisation();
+	
+	UFUNCTION(CallInEditor, Category = "Evaluation Commands")
+	void Evaluate();
+	
+	UFUNCTION(CallInEditor, Category = "Evaluation Commands")
+	void PlayEvaluationVisualisation();
 	
 	virtual void PostEditChangeProperty(struct FPropertyChangedEvent& PropertyChangedEvent) override;
 	
@@ -158,6 +155,9 @@ private:
 	
 	UPROPERTY(EditAnywhere, Category = "Simulation Parameters")
 	FTCSocialForceParameters SocialForceParams;
+	
+	UPROPERTY(EditAnywhere, Category = "World Configuration")
+	int NumEntitiesPerGroup = 1;
 	
 	UPROPERTY(EditAnywhere, Category = "World Configuration")
 	TArray<FTCSpawnConfiguration> SpawnConfigurations;

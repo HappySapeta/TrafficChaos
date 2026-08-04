@@ -13,7 +13,6 @@ ASimulationActor::ASimulationActor()
 	FastCrowdSimParams = TInstancedStruct<FTCFastSimulationParameters>::Make();
 	BaselineSimulator = MakeShared<TCBaselineContinuumCrowdSimulator>();
 	FastSimulator = MakeShared<TCFastContinuumCrowdSimulator>();
-	CurrentSimulator = FastSimulator;
 }
 
 void ASimulationActor::InitialiseSimulation()
@@ -182,7 +181,7 @@ void ASimulationActor::StartSimulator()
 		AverageTimeSpent += FPlatformTime::ToMilliseconds64(EndCycles - StartCycles);
 	}
 		
-	UE_LOG(LogTemp, Warning, TEXT("Time spent per frame = %lf") ,AverageTimeSpent / NumFrames);
+	UE_LOG(LogTemp, Warning, TEXT("Time spent per frame in ms = %lf"), AverageTimeSpent / NumFrames);
 }
 
 void ASimulationActor::StopVisualisation()
@@ -684,7 +683,7 @@ void ASimulationActor::InitialiseEntityStartLocations()
 		const float& R = Configuration.Rotation;
 		int NumSpawned = 0;
 		
-		while (NumSpawned < Configuration.Amount)
+		while (NumSpawned < NumEntitiesPerGroup)
 		{
 			const float S = UKismetMathLibrary::RandomFloatInRange(0, SpawnRange);
 			const float T = UKismetMathLibrary::RandomFloatInRange(0, 2 * PI);
