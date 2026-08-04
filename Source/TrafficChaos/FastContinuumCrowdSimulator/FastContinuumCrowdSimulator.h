@@ -107,4 +107,5 @@ private:
 	FTCSocialForceParameters PedParameters;
 	FRpImplicitGrid ImplicitGrid;
 	
+	TArray<FVector> EntityPositions;
 }; 

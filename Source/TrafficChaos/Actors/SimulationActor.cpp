@@ -14,13 +14,14 @@ ASimulationActor::ASimulationActor()
 	BaselineSimulator = MakeShared<TCBaselineContinuumCrowdSimulator>();
 	FastSimulator = MakeShared<TCFastContinuumCrowdSimulator>();
 	CurrentSimulator = FastSimulator;
-	
-	BaselineCrowdSimParamsCopy = BaselineCrowdSimParams;
-	FastCrowdSimParamsCopy = FastCrowdSimParams;
 }
 
 void ASimulationActor::InitialiseSimulation()
 {
+	PrimarySimulationCache.Reset();
+	ElapsedSimTime = 0;
+	UKismetMathLibrary::SetRandomStreamSeed(RandomStream, RandomSeed);
+	
 	BaselineSimulator->Initialize(WorldSpan, Resolution, SpawnConfigurations.Num(), BaselineCrowdSimParams, SocialForceParams);
 	FastSimulator->Initialize(WorldSpan, Resolution, SpawnConfigurations.Num(), FastCrowdSimParams, SocialForceParams);
 	
@@ -39,6 +40,117 @@ void ASimulationActor::InitialiseSimulation()
 	InitialiseEntityStartLocations();
 }
 
+void ASimulationActor::Evaluate()
+{
+	StopVisualisation();
+	InitialiseSimulation();
+	
+	AvgAbsoluteDifferenceMetric = 0.0f;
+	AvgPathLengthMetric = 0.0f;
+	AvgInterPedDistanceMetric = 0.0f;
+	
+	ReferencePreviousPositions.Init(FVector2f::ZeroVector,Entities.Num());
+	TestPreviousPositions.Init(FVector2f::ZeroVector, Entities.Num());
+	for (int Index = 0; Index < Entities.Num(); ++Index)
+	{
+		const FVector2f& Position = Entities[Index].Position;
+		ReferencePreviousPositions[Index] = Position;
+		TestPreviousPositions[Index] = Position;
+	}
+	
+	BaselineSimCache.Reset();
+	FastSimCache.Reset();
+	
+	TArray<FTCEntity> BaselineEntities = Entities;
+	TArray<FTCEntity> FastSimEntities = Entities;
+	
+	int NumFrames = 0;
+	while (ElapsedSimTime < SimulationLength)
+	{
+		BaselineSimulator->UpdateSimulation(BaselineEntities, SimulationTimeStep);
+		BaselineSimulator->MoveEntites(BaselineEntities, SimulationTimeStep);
+		
+		FastSimulator->UpdateSimulation(FastSimEntities, SimulationTimeStep);
+		FastSimulator->MoveEntites(FastSimEntities, SimulationTimeStep);
+		
+		BaselineSimCache.Push({});
+		FastSimCache.Push({});
+		for (int Index = 0; Index < Entities.Num(); ++Index)
+		{
+			BaselineSimCache.Last().Push({BaselineEntities[Index].Position, BaselineEntities[Index].GroupID});
+			FastSimCache.Last().Push({FastSimEntities[Index].Position, FastSimEntities[Index].GroupID});
+		}
+		
+		MetricCompare(BaselineEntities, FastSimEntities);
+		
+		ElapsedSimTime += SimulationTimeStep;
+		++NumFrames;
+	}
+	
+	AvgAbsoluteDifferenceMetric /= NumFrames;
+	AvgInterPedDistanceMetric /= NumFrames;
+	AvgInterPedDistanceMetric /= NumFrames;
+	
+	if (bNormaliseMetrics)
+	{
+		AvgAbsoluteDifferenceMetric /= WorldSpan;
+		AvgInterPedDistanceMetric /= WorldSpan;
+		AvgPathLengthMetric /= WorldSpan;
+	}
+	
+	UE_LOG(LogTemp, Warning, TEXT("Abs Diff = %f, Path Length = %f, InterPed Dist = %f"), AvgAbsoluteDifferenceMetric, AvgPathLengthMetric, AvgInterPedDistanceMetric);
+}
+
+void ASimulationActor::MetricCompare(const TArray<FTCEntity>& Reference, const TArray<FTCEntity>& Test)
+{
+	const int NumEntities = Entities.Num();
+	
+	float AbsoluteDifferenceMetric = 0.0f;
+	float PathLengthMetric = 0.0f;
+	float InterPedDistanceMetric = 0.0f;
+	
+	for (int Index = 0; Index < NumEntities; ++Index)
+	{
+		const FVector2f& ReferencePosition = Reference[Index].Position;
+		const FVector2f& TestPosition = Test[Index].Position;
+		
+		// Absolute Difference Metric
+		AbsoluteDifferenceMetric += FVector2f::Distance(ReferencePosition, TestPosition);
+		
+		// Path Length Metric
+		{
+			const FVector2f& ReferencePreviousPosition = ReferencePreviousPositions[Index];
+			const FVector2f& TestPreviousPosition = TestPreviousPositions[Index];
+			PathLengthMetric += FVector2f::Distance(ReferencePreviousPosition, ReferencePosition) - FVector2f::Distance(TestPreviousPosition, TestPosition);
+			ReferencePreviousPositions[Index] = ReferencePosition;
+			TestPreviousPositions[Index] = TestPosition;
+		}
+		
+		// Inter-pedestrian Distance Metric
+		{
+			float ReferenceInterPedDistance = 0.0f;
+			float TestInterPedDistance = 0.0f;
+		
+			for (int OtherIndex = Index + 1; OtherIndex < NumEntities; ++OtherIndex)
+			{
+				const FVector2f& BaselineOtherPosition = Reference[OtherIndex].Position;
+				const FVector2f& TestOtherPosition = Test[OtherIndex].Position;
+				ReferenceInterPedDistance += FVector2f::Distance(BaselineOtherPosition, ReferencePosition);
+				TestInterPedDistance += FVector2f::Distance(TestOtherPosition, TestPosition);
+			}
+		
+			ReferenceInterPedDistance /= (NumEntities - 1);
+			TestInterPedDistance /= (NumEntities - 1);
+		
+			InterPedDistanceMetric += FMath::Abs(ReferenceInterPedDistance - TestInterPedDistance);
+		}
+	}
+	
+	AvgAbsoluteDifferenceMetric += AbsoluteDifferenceMetric / NumEntities;
+	AvgInterPedDistanceMetric += InterPedDistanceMetric / NumEntities;
+	AvgPathLengthMetric += PathLengthMetric / NumEntities;
+}
+
 void ASimulationActor::SimulateFast()
 {
 	CurrentSimulator = FastSimulator;
@@ -53,35 +165,24 @@ void ASimulationActor::SimulateBaseline()
 
 void ASimulationActor::StartSimulator()
 {
-	if (const UWorld* World = GetWorld())
+	StopVisualisation();
+	InitialiseSimulation();
+	
+	// Simulation
+	double AverageTimeSpent = 0;
+	int NumFrames = 0;
+	while (ElapsedSimTime < SimulationLength)
 	{
-		World->GetTimerManager().ClearTimer(VizTimerHandle);
-		SimulationCache.Reset();
-		ElapsedSimTime = 0;
+		const uint64 StartCycles = FPlatformTime::Cycles64();
+		Simulate(SimulationTimeStep);
+		const uint64 EndCycles = FPlatformTime::Cycles64();
 		
-		UKismetMathLibrary::SetRandomStreamSeed(RandomStream, RandomSeed);
-		InitialiseSimulation();
-		ResetMetrics();
-		
-		while (ElapsedSimTime < SimulationLength)
-		{
-			Simulate(SimulationTimeStep);
-			ElapsedSimTime += SimulationTimeStep;
-		}
+		ElapsedSimTime += SimulationTimeStep;
+		++NumFrames;
+		AverageTimeSpent += FPlatformTime::ToMilliseconds64(EndCycles - StartCycles);
 	}
-}
-
-void ASimulationActor::StartVisualisation()
-{
-	if (const UWorld* World = GetWorld())
-	{
-		World->GetTimerManager().ClearTimer(VizTimerHandle);
-		VisualisationFrameIndex = 0;
 		
-		FTimerDelegate TimerDelegate;
-		TimerDelegate.BindUObject(this, &ASimulationActor::PlayVisualisation);
-		World->GetTimerManager().SetTimer(VizTimerHandle, TimerDelegate, SimulationTimeStep / VisualisationPlaybackRate, true);
-	}
+	UE_LOG(LogTemp, Warning, TEXT("Time spent per frame = %lf") ,AverageTimeSpent / NumFrames);
 }
 
 void ASimulationActor::StopVisualisation()
@@ -89,95 +190,87 @@ void ASimulationActor::StopVisualisation()
 	if (const UWorld* World = GetWorld())
 	{
 		VisualisationFrameIndex = 0;
+		World->GetTimerManager().ClearTimer(EvaluationVizTimerHandle);
 		World->GetTimerManager().ClearTimer(VizTimerHandle);
+	}
+}
+
+void ASimulationActor::PlayEvaluationVisualisation()
+{
+	const auto Play = [this]()
+	{
+		if (VisualisationFrameIndex >= BaselineSimCache.Num())
+		{
+			StopVisualisation();
+			return;
+		}
+	
+		const TArray<TPair<FVector2f, int>>& FirstFrame = BaselineSimCache[VisualisationFrameIndex];
+		for (const auto& Entity : FirstFrame)
+		{
+			const FVector2f& Position = Entity.Get<0>();
+			DrawDebugSphere(GetWorld(), {Position.X, Position.Y, 0.0f}, 25.0f, 10, FColor::Red, false, SimulationTimeStep / VisualisationPlaybackRate);
+		}
+	
+		const TArray<TPair<FVector2f, int>>& SecondFrame = FastSimCache[VisualisationFrameIndex];
+		for (const auto& Entity : SecondFrame)
+		{
+			const FVector2f& Position = Entity.Get<0>();
+			DrawDebugSphere(GetWorld(), {Position.X, Position.Y, 0.0f}, 25.0f, 10, FColor::Blue, false, SimulationTimeStep / VisualisationPlaybackRate);
+		}
+		++VisualisationFrameIndex;
+	};
+	
+	StopVisualisation();
+	if (const UWorld* World = GetWorld())
+	{
+		FTimerDelegate TimerDelegate;
+		TimerDelegate.BindLambda(Play);
+		World->GetTimerManager().SetTimer(EvaluationVizTimerHandle, TimerDelegate, SimulationTimeStep, true);
 	}
 }
 
 void ASimulationActor::PlayVisualisation()
 {
-	if (VisualisationFrameIndex >= SimulationCache.Num())
+	const auto Play = [this]()
 	{
-		StopVisualisation();
-		return;
-	}
+		if (VisualisationFrameIndex >= PrimarySimulationCache.Num())
+		{
+			StopVisualisation();
+			return;
+		}
 	
-	const TArray<TPair<FVector2f, int>>& Frame = SimulationCache[VisualisationFrameIndex];
-	for (const auto& Entity : Frame)
+		const TArray<TPair<FVector2f, int>>& Frame = PrimarySimulationCache[VisualisationFrameIndex];
+		for (const auto& Entity : Frame)
+		{
+			const FVector2f& Position = Entity.Get<0>();
+			const FColor Color = EntityColors[Entity.Get<1>()];
+			DrawDebugSphere(GetWorld(), {Position.X, Position.Y, 0.0f}, 25.0f, 10, Color, false, SimulationTimeStep / VisualisationPlaybackRate);
+		}
+		++VisualisationFrameIndex;
+	};
+	
+	StopVisualisation();
+	if (const UWorld* World = GetWorld())
 	{
-		const FVector2f& Position = Entity.Get<0>();
-		const FColor Color = EntityColors[Entity.Get<1>()];
-		DrawDebugSphere(GetWorld(), {Position.X, Position.Y, 0.0f}, 25.0f, 10, Color, false, SimulationTimeStep / VisualisationPlaybackRate);
+		FTimerDelegate TimerDelegate;
+		TimerDelegate.BindLambda(Play);
+		World->GetTimerManager().SetTimer(VizTimerHandle, TimerDelegate, SimulationTimeStep / VisualisationPlaybackRate, true);
 	}
-	++VisualisationFrameIndex;
 }
 
 void ASimulationActor::Simulate(const float DeltaSeconds)
 {
 	check(CurrentSimulator.IsValid());
-	SimulationCache.Push({});
+	PrimarySimulationCache.Push({});
 	
 	CurrentSimulator.Pin()->UpdateSimulation(Entities, SimulationTimeStep);
 	CurrentSimulator.Pin()->MoveEntites(Entities, SimulationTimeStep);
 	
 	for (const FTCEntity& Entity : Entities)
 	{
-		SimulationCache.Last().Push({Entity.Position, Entity.GroupID});
+		PrimarySimulationCache.Last().Push({Entity.Position, Entity.GroupID});
 	}
-	
-	if (bShouldCaptureMetrics)
-	{
-		CollectMetrics();
-	}
-}
-
-void ASimulationActor::CollectMetrics()
-{
-	for (int Index = 0; Index < Entities.Num(); ++Index)
-	{
-		const FTCEntity& Entity = Entities[Index];
-		if (bShouldCapturePositions)
-		{
-			if (Metric_Positions.Last().IsValidIndex(Index))
-			{
-				Metric_Distance.Last().Push(FVector2f::Distance(Entity.Position, Metric_Positions.Last()[Index]));
-			}
-			else
-			{
-				Metric_Distance.Last().Push(0.0f);
-			}
-			Metric_Positions.Last().Push(Entity.Position);
-		}
-		
-		if (bShouldCaptureDistances)
-		{
-			float TotalInterPedDistance = 0;
-			for (int OtherIndex = 0; OtherIndex < Entities.Num(); ++OtherIndex)
-			{
-				if (OtherIndex == Index)
-				{
-					continue;
-				}
-				TotalInterPedDistance += FVector2f::Distance(Entity.Position, Entities[OtherIndex].Position);
-			}
-		
-			Metric_InterPedDistance.Last().Push(TotalInterPedDistance);
-		}
-	}
-	
-	if (bShouldCaptureDistances)
-	{
-		for (float& InterPedDistance : Metric_InterPedDistance.Last())
-		{
-			InterPedDistance /= Metric_InterPedDistance.Last().Num();
-		}
-	}
-}
-
-void ASimulationActor::ResetMetrics()
-{
-	Metric_Positions.Reset();
-	Metric_Distance.Reset();
-	Metric_InterPedDistance.Reset();
 }
 
 void ASimulationActor::DrawDebugBaseline()
@@ -580,6 +673,7 @@ void ASimulationActor::InitialiseEntityStartLocations()
 {
 	Entities.Reset();
 	EntityColors.Reset();
+	
 	int GroupID = 0;
 	for (const FTCSpawnConfiguration& Configuration : SpawnConfigurations)
 	{
