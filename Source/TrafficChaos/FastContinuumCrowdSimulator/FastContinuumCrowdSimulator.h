@@ -16,12 +16,11 @@ struct FTCFastCell
 	
 	uint8 ByteDensity;
 	EDirectionIndex Direction;
-	float Discomfort;
+	uint8 Discomfort;
 	
 	TArray<float> Potential;
 	TArray<FVector2f> DesiredVelocity;
-	TArray<TStaticArray<float, ANISOTROPY>> CostField;
-	TArray<TStaticArray<float, ANISOTROPY>> PotentialGradient;
+	TStaticArray<float, ANISOTROPY> CostField;
 	bool bIsWall = false;
 };
 
@@ -86,9 +85,8 @@ public:
 private:
 	
 	void UpdateDensityAndVelocityField(const TArray<FTCEntity>& Entities);
-	void UpdateCostField(const int GroupID);
+	void UpdateCostField();
 	void UpdatePotentialField(int GroupID);
-	void UpdatePotentialGradient(const int GroupID);
 	void UpdateDesiredVelocityField(const int GroupID);
 	float GetFiniteDifferenceApproximation(const FVector2f& Coords, const int GroupID);
 	FTCCheapestNeighbor GetCheapestNeighbor(const FVector2f& Coords, EDirectionIndex First, EDirectionIndex Second, const int GroupID);
@@ -107,4 +105,5 @@ private:
 	FTCSocialForceParameters PedParameters;
 	FRpImplicitGrid ImplicitGrid;
 	
+	TArray<FVector> EntityPositions;
 }; 

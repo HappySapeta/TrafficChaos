@@ -37,20 +37,22 @@ void TCBaselineContinuumCrowdSimulator::RegisterDiscomfort(const FVector2f& Wall
 
 void TCBaselineContinuumCrowdSimulator::MoveEntites(TArray<FTCEntity>& Entities, const float TimeStep)
 {
-	TArray<FVector> Positions;
+	EntityPositions.Reset(Entities.Num());
 	for (const FTCEntity& Entity : Entities)
 	{
-		Positions.Push({Entity.Position.X, Entity.Position.Y, 0.0f});
+		EntityPositions.Push({Entity.Position.X, Entity.Position.Y, 0.0f});
 	}
-	ImplicitGrid.Update(Positions);
+	ImplicitGrid.Update(EntityPositions);
 
 	for (int EntityIndex = 0; EntityIndex < Entities.Num(); ++EntityIndex)
 	{
+#ifdef ENABLE_VELOCITY_OVERRIDING
 		if (Entities[EntityIndex].bUseOverrideVelocity)
 		{
 			Entities[EntityIndex].Position += Entities[EntityIndex].OverrideVelocity * TimeStep;
 			continue;
 		}
+#endif
 
 		FVector2f Force = FVector2f::ZeroVector;
 
@@ -223,6 +225,9 @@ void TCBaselineContinuumCrowdSimulator::Initialize
 		Cell->PotentialGradient.Init({}, NewNumGroups);
 	};
 	Field.ForEachCellPerform(InitializeCell);
+	
+	Knowns.Reserve(Field.GetNum());
+	Candidates.Reserve(Field.GetNum());
 	
 	NumGroups = NewNumGroups;
 	SetSimulationParameters(Parameters);

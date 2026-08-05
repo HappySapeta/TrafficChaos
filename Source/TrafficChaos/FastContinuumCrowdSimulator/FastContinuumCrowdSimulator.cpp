@@ -24,10 +24,16 @@ void TCFastContinuumCrowdSimulator::Initialize
 		Cell->Discomfort = 0;
 		Cell->Potential.Init(0, NewNumGroups);
 		Cell->DesiredVelocity.Init({0, 0}, NewNumGroups);
-		Cell->CostField.Init({}, NewNumGroups);
-		Cell->PotentialGradient.Init({}, NewNumGroups);
+		for (float& Cost : Cell->CostField)
+		{
+			Cost = 0.0f;
+		}
 	};
 	Field.ForEachCellPerform(InitializeCell);
+	
+	Knowns.Reserve(Field.GetNum());
+	Candidates.Reserve(Field.GetNum());
+	
 	NumGroups = NewNumGroups;
 	SetSimulationParameters(Parameters);
 	SetAdvectionParameters(SocialForceParameters);
@@ -57,27 +63,29 @@ void TCFastContinuumCrowdSimulator::RegisterDiscomfort(const FVector2f& WallCoor
 		for (int GroupID = 0; GroupID < NumGroups; ++GroupID)
 		{
 			Cell->Potential[GroupID] = MAX_COST;
-			Cell->Discomfort = Amount;
+			Cell->Discomfort = Amount * TNumericLimits<uint8>::Max();
 		}
 	}
 }
 
 void TCFastContinuumCrowdSimulator::MoveEntites(TArray<FTCEntity>& Entities, const float TimeStep)
 {
-	TArray<FVector> Positions;
+	EntityPositions.Reset(Entities.Num());
 	for (const FTCEntity& Entity : Entities)
 	{
-		Positions.Push({Entity.Position.X, Entity.Position.Y, 0.0f});
+		EntityPositions.Push({Entity.Position.X, Entity.Position.Y, 0.0f});
 	}
-	ImplicitGrid.Update(Positions);
+	ImplicitGrid.Update(EntityPositions);
 
 	for (int EntityIndex = 0; EntityIndex < Entities.Num(); ++EntityIndex)
 	{
+#ifdef ENABLE_VELOCITY_OVERRIDING
 		if (Entities[EntityIndex].bUseOverrideVelocity)
 		{
 			Entities[EntityIndex].Position += Entities[EntityIndex].OverrideVelocity * TimeStep;
 			continue;
 		}
+#endif
 
 		FVector2f Force = FVector2f::ZeroVector;
 
@@ -130,11 +138,10 @@ void TCFastContinuumCrowdSimulator::MoveEntites(TArray<FTCEntity>& Entities, con
 void TCFastContinuumCrowdSimulator::UpdateSimulation(const TArray<FTCEntity>& Entities, const float DeltaSeconds)
 {
 	UpdateDensityAndVelocityField(Entities);
+	UpdateCostField();
 	for (int GroupID = 0; GroupID < NumGroups; ++GroupID)
 	{
-		UpdateCostField(GroupID);
 		UpdatePotentialField(GroupID);
-		UpdatePotentialGradient(GroupID);
 		UpdateDesiredVelocityField(GroupID);
 	}
 }
@@ -179,9 +186,9 @@ void TCFastContinuumCrowdSimulator::UpdateDensityAndVelocityField(const TArray<F
 	Field.ForEachCellPerform(CalcAverageVelocity);
 }
 
-void TCFastContinuumCrowdSimulator::UpdateCostField(const int GroupID)
+void TCFastContinuumCrowdSimulator::UpdateCostField()
 {
-	const auto CalculateCost = [this, GroupID](FTCFastCell* CurrentCell, const FVector2f& Coords)
+	const auto CalculateCost = [this](FTCFastCell* CurrentCell, const FVector2f& Coords)
 	{
 		for (int DirectionIndex = 0; DirectionIndex < ANISOTROPY; ++DirectionIndex)
 		{
@@ -222,11 +229,11 @@ void TCFastContinuumCrowdSimulator::UpdateCostField(const int GroupID)
 			
 			// Discomfort Cost
 			{
-				TotalCost += NeighborCell->Discomfort * SimParameters.DiscomfortConstant;
+				TotalCost += (NeighborCell->Discomfort / static_cast<float>(TNumericLimits<uint8>::Max())) * SimParameters.DiscomfortConstant;
 			}
 			
 			TotalCost /= 4;
-			CurrentCell->CostField[GroupID][DirectionIndex] = TotalCost;
+			CurrentCell->CostField[DirectionIndex] = TotalCost;
 		}
 	}; 
 	Field.ForEachCellPerform(CalculateCost);
@@ -284,50 +291,35 @@ void TCFastContinuumCrowdSimulator::UpdatePotentialField(const int GroupID)
 	}
 }
 
-void TCFastContinuumCrowdSimulator::UpdatePotentialGradient(const int GroupID)
-{
-	const auto Operation = [this, GroupID](FTCFastCell* Cell, const FVector2f& Coords) -> void
-	{
-		for (int DirectionIndex = 0; DirectionIndex < ANISOTROPY; ++DirectionIndex)
-		{
-			if (const FTCFastCell* Neighbor = Field.GetDataAt(Coords, DIRECTION_OFFSETS[DirectionIndex]))
-			{
-				const float Gradient = Cell->Potential[GroupID] - Neighbor->Potential[GroupID];
-				Cell->PotentialGradient[GroupID][DirectionIndex] = Gradient;
-			}
-		}
-	};
-
-	Field.ForEachCellPerform(Operation);
-}
-
 void TCFastContinuumCrowdSimulator::UpdateDesiredVelocityField(const int GroupID)
 {
 	const auto CalculateDesiredVelocity = [this, GroupID](FTCFastCell* Cell, const FVector2f& Coords) -> void
 	{
-		float MaxPotential = TNumericLimits<float>::Min();
-		float MinPotential = TNumericLimits<float>::Max();
-		for (int DirectionIndex = 0; DirectionIndex < ANISOTROPY; ++DirectionIndex)
-		{
-			const float PotentialGradient = Cell->PotentialGradient[GroupID][DirectionIndex];
-			if (PotentialGradient > MaxPotential)
-			{
-				MaxPotential = PotentialGradient;
-			}
-			if (PotentialGradient < MinPotential)
-			{
-				MinPotential = PotentialGradient;
-			}
-		}
-
 		Cell->DesiredVelocity[GroupID] = {0, 0};
 		FVector2f DirectionVector = FVector2f::ZeroVector;
+		
+		float MaxPotential = 0.0f;
 		for (int DirectionIndex = 0; DirectionIndex < ANISOTROPY; ++DirectionIndex)
 		{
-			const float PotentialGradient = Cell->PotentialGradient[GroupID][DirectionIndex];
-			const float NormPotential = UKismetMathLibrary::NormalizeToRange(PotentialGradient, MinPotential, MaxPotential);
+			if (const FTCFastCell* Neighbor = Field.GetDataAt(Cell->Coords, DIRECTION_OFFSETS[DirectionIndex]))
+			{
+				const float& Potential = Neighbor->Potential[GroupID];
+				if (Potential > MaxPotential)
+				{
+					MaxPotential = Potential;
+				}
+			}
+		}
+		
+		for (int DirectionIndex = 0; DirectionIndex < ANISOTROPY; ++DirectionIndex)
+		{
+			if (const FTCFastCell* Neighbor = Field.GetDataAt(Cell->Coords, DIRECTION_OFFSETS[DirectionIndex]))
+			{
+				const float PotentialGradient = Cell->Potential[GroupID] - Neighbor->Potential[GroupID];
+				const float NormPotential = UKismetMathLibrary::NormalizeToRange(PotentialGradient, 0, MaxPotential);
 
-			DirectionVector += NormPotential * DIRECTION_OFFSETS[DirectionIndex];
+				DirectionVector += NormPotential * DIRECTION_OFFSETS[DirectionIndex];
+			}
 		}
 
 		Cell->DesiredVelocity[GroupID] = (DirectionVector / ANISOTROPY).GetSafeNormal() * PedParameters.DesiredSpeed;
@@ -383,19 +375,19 @@ FTCCheapestNeighbor TCFastContinuumCrowdSimulator::GetCheapestNeighbor(const FVe
 	
 	if (FirstNeighbor && !SecondNeighbor)
 	{
-		return {FirstNeighbor->Potential[GroupID], CurrentCell->CostField[GroupID][First]};
+		return {FirstNeighbor->Potential[GroupID], CurrentCell->CostField[First]};
 	}
 	else if (!FirstNeighbor && SecondNeighbor)
 	{
-		return {SecondNeighbor->Potential[GroupID], CurrentCell->CostField[GroupID][Second]};
+		return {SecondNeighbor->Potential[GroupID], CurrentCell->CostField[Second]};
 	}
 	else if (!FirstNeighbor && !SecondNeighbor)
 	{
 		return {MAX_COST, MAX_COST};
 	}
 
-	const FTCCheapestNeighbor ResultFirst = {FirstNeighbor->Potential[GroupID], CurrentCell->CostField[GroupID][First]};
-	const FTCCheapestNeighbor ResultSecond = {SecondNeighbor->Potential[GroupID], CurrentCell->CostField[GroupID][Second]};
+	const FTCCheapestNeighbor ResultFirst = {FirstNeighbor->Potential[GroupID], CurrentCell->CostField[First]};
+	const FTCCheapestNeighbor ResultSecond = {SecondNeighbor->Potential[GroupID], CurrentCell->CostField[Second]};
 
 	return ResultFirst.Sum() < ResultSecond.Sum() ? ResultFirst : ResultSecond;
 }

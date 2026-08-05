@@ -114,4 +114,6 @@ private:
 	FTCBaselineSimParameters SimParameters;
 	FRpImplicitGrid ImplicitGrid;
 	FTCSocialForceParameters PedParameters;
+	
+	TArray<FVector> EntityPositions;
 }; 
