@@ -63,7 +63,7 @@ void TCFastContinuumCrowdSimulator::RegisterDiscomfort(const FVector2f& WallCoor
 		for (int GroupID = 0; GroupID < NumGroups; ++GroupID)
 		{
 			Cell->Potential[GroupID] = MAX_COST;
-			Cell->Discomfort = Amount;
+			Cell->Discomfort = Amount * TNumericLimits<uint8>::Max();
 		}
 	}
 }
@@ -229,7 +229,7 @@ void TCFastContinuumCrowdSimulator::UpdateCostField()
 			
 			// Discomfort Cost
 			{
-				TotalCost += NeighborCell->Discomfort * SimParameters.DiscomfortConstant;
+				TotalCost += (NeighborCell->Discomfort / static_cast<float>(TNumericLimits<uint8>::Max())) * SimParameters.DiscomfortConstant;
 			}
 			
 			TotalCost /= 4;

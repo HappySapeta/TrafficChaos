@@ -16,7 +16,7 @@ struct FTCFastCell
 	
 	uint8 ByteDensity;
 	EDirectionIndex Direction;
-	float Discomfort;
+	uint8 Discomfort;
 	
 	TArray<float> Potential;
 	TArray<FVector2f> DesiredVelocity;
