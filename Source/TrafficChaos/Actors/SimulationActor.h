@@ -97,6 +97,8 @@ public:
 	// Sets default values for this actor's properties 
 	ASimulationActor();
 
+	void Tick(float DeltaSeconds) override;
+	
 	UFUNCTION(CallInEditor, Category = "Simulation Commands")
 	void SimulateFast();
 	
@@ -116,6 +118,10 @@ public:
 	void PlayEvaluationVisualisation();
 	
 	virtual void PostEditChangeProperty(struct FPropertyChangedEvent& PropertyChangedEvent) override;
+	
+protected:
+	
+	void BeginPlay() override;
 	
 private:
 	

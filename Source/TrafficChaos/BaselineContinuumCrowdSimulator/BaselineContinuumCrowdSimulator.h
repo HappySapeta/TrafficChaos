@@ -84,7 +84,7 @@ public:
 	
 	virtual void Initialize(const float NewWorldSpan, const int NewResolution, const int NewNumGroups, const TInstancedStruct<FTCSimulationParameters> Parameters, const FTCSocialForceParameters& SocialForceParameters) override;
 	virtual void MoveEntites(TArray<FTCEntity>& Entities, const float DeltaTime) override;
-	virtual void UpdateSimulation(const TArray<FTCEntity>& Entities, const float DeltaTime) override;
+	virtual void UpdateSimulation(const TArray<FTCEntity>& Entities) override;
 	virtual void RegisterGoal(const int GroupID, const FVector2f& WorldLocation) override;
 	virtual void RegisterWall(const FVector2f& WorldLocation) override;
 	virtual void RegisterDiscomfort(const FVector2f& WorldLocation, const float Amount) override;
@@ -92,7 +92,7 @@ public:
 private:
 	
 	void UpdateCostField(const int GroupID);
-	void UpdatePotentialField_FM(const int GroupID);
+	void UpdatePotentialField(const int GroupID);
 	void UpdateSpeedField();
 	void UpdateDensityAndVelocityField(const TArray<FTCEntity>& Entities);
 	void UpdatePotentialGradient(const int GroupID);

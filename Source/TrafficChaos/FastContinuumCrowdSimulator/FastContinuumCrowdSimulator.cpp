@@ -6,12 +6,7 @@
 
 constexpr float MAX_COST = TNumericLimits<float>::Max();
 
-void TCFastContinuumCrowdSimulator::Initialize
-(
-	const float NewWorldSpan, const int NewResolution, const int NewNumGroups, 
-	const TInstancedStruct<FTCSimulationParameters>
-	Parameters, const FTCSocialForceParameters& SocialForceParameters
-)
+void TCFastContinuumCrowdSimulator::Initialize(const float NewWorldSpan, const int NewResolution, const int NewNumGroups, const TInstancedStruct<FTCSimulationParameters>Parameters, const FTCSocialForceParameters& SocialForceParameters)
 {
 	ImplicitGrid.Initialize(FFloatRange(0, NewWorldSpan), NewResolution);
 	Field.Initialize(NewResolution, NewWorldSpan, {});
@@ -135,7 +130,7 @@ void TCFastContinuumCrowdSimulator::MoveEntites(TArray<FTCEntity>& Entities, con
 	}
 }
 
-void TCFastContinuumCrowdSimulator::UpdateSimulation(const TArray<FTCEntity>& Entities, const float DeltaSeconds)
+void TCFastContinuumCrowdSimulator::UpdateSimulation(const TArray<FTCEntity>& Entities)
 {
 	UpdateDensityAndVelocityField(Entities);
 	UpdateCostField();
@@ -148,8 +143,9 @@ void TCFastContinuumCrowdSimulator::UpdateSimulation(const TArray<FTCEntity>& En
 
 void TCFastContinuumCrowdSimulator::UpdateDensityAndVelocityField(const TArray<FTCEntity>& Entities)
 {
+	TRACE_CPUPROFILER_EVENT_SCOPE(Fast - UpdateDensityAndVelocityField);
 	const auto ResetCellDensityAndVelocties = [](FTCFastCell* Cell, const FVector2f& Coords) -> void
-	{
+	{ 
 		Cell->ByteDensity = 0;
 		Cell->Direction = EDirectionIndex::NONE;
 	};
@@ -166,28 +162,19 @@ void TCFastContinuumCrowdSimulator::UpdateDensityAndVelocityField(const TArray<F
 
 		if (FTCFastCell* Cell = Field.GetDataAt(Field.WorldToGrid(EntityPosition)))
 		{
-			Cell->ByteDensity = Cell->ByteDensity + 1 == 0 ? TNumericLimits<uint8>::Max() : Cell->ByteDensity + 1;
-
-			Cell->Direction = ConvertVectorToDirectionIndex
-			(
-				DIRECTION_OFFSETS[Cell->Direction].GetSafeNormal() + EntityVelocity.GetSafeNormal()
-			);
+			Cell->ByteDensity = Cell->ByteDensity < TNumericLimits<uint8>::Max() ? Cell->ByteDensity + 1 : Cell->ByteDensity;
+			int PreviousDensity = Cell->ByteDensity > 0 ? Cell->ByteDensity - 1 : 0;
+			FVector2f AccumulatedVelocity = PreviousDensity * DIRECTION_OFFSETS[Cell->Direction]; 
+			AccumulatedVelocity += EntityVelocity;
+			const FVector2f AverageVelocity = AccumulatedVelocity / Cell->ByteDensity;
+			Cell->Direction = ConvertVectorToDirectionIndex(AverageVelocity);
 		}
 	}
-	
-	const auto CalcAverageVelocity = [this](FTCFastCell* Cell, const FVector2f& Coords) -> void
-	{
-		if (Cell->ByteDensity != 0)
-		{
-			const FVector2f& AvgDirection = DIRECTION_OFFSETS[Cell->Direction] / Cell->ByteDensity;
-			Cell->Direction = ConvertVectorToDirectionIndex(AvgDirection);
-		}
-	};
-	Field.ForEachCellPerform(CalcAverageVelocity);
 }
 
 void TCFastContinuumCrowdSimulator::UpdateCostField()
 {
+	TRACE_CPUPROFILER_EVENT_SCOPE(Fast - UpdateCostField);
 	const auto CalculateCost = [this](FTCFastCell* CurrentCell, const FVector2f& Coords)
 	{
 		for (int DirectionIndex = 0; DirectionIndex < ANISOTROPY; ++DirectionIndex)
@@ -240,6 +227,7 @@ void TCFastContinuumCrowdSimulator::UpdateCostField()
 
 void TCFastContinuumCrowdSimulator::UpdatePotentialField(const int GroupID)
 {
+	TRACE_CPUPROFILER_EVENT_SCOPE(Fast - UpdatePotentialField);
 	check(Goals.Contains(GroupID));
 
 	const FVector2f GoalCoords = Goals[GroupID];
@@ -292,6 +280,7 @@ void TCFastContinuumCrowdSimulator::UpdatePotentialField(const int GroupID)
 
 void TCFastContinuumCrowdSimulator::UpdateDesiredVelocityField(const int GroupID)
 {
+	TRACE_CPUPROFILER_EVENT_SCOPE(Fast - UpdateDesiredVelocityField);
 	const auto CalculateDesiredVelocity = [this, GroupID](FTCFastCell* Cell, const FVector2f& Coords) -> void
 	{
 		Cell->DesiredVelocity[GroupID] = {0, 0};
@@ -420,11 +409,10 @@ EDirectionIndex TCFastContinuumCrowdSimulator::ConvertVectorToDirectionIndex(con
 {
 	uint8 Result = 0;
 	float MaxDotProduct = -1.0f;
-	const FVector2f& InputDirection = Vector.GetSafeNormal();
 
 	for (int DirectionIndex = 0; DirectionIndex < NUM_OFFSETS; ++DirectionIndex)
 	{
-		const float DotProduct = FVector2f::DotProduct(DIRECTION_OFFSETS[DirectionIndex].GetSafeNormal(), InputDirection);
+		const float DotProduct = FVector2f::DotProduct(DIRECTION_OFFSETS[DirectionIndex], Vector);
 		if (DotProduct > MaxDotProduct)
 		{
 			MaxDotProduct = DotProduct;

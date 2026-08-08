@@ -7,12 +7,29 @@
 ASimulationActor::ASimulationActor()
 {
 	// Set this actor to call Tick() every frame.  You can turn this off to improve performance if you don't need it.
-	PrimaryActorTick.bCanEverTick = false;
+	PrimaryActorTick.bCanEverTick = true;
 	
 	BaselineCrowdSimParams = TInstancedStruct<FTCBaselineSimParameters>::Make();
 	FastCrowdSimParams = TInstancedStruct<FTCFastSimulationParameters>::Make();
 	BaselineSimulator = MakeShared<TCBaselineContinuumCrowdSimulator>();
 	FastSimulator = MakeShared<TCFastContinuumCrowdSimulator>();
+}
+
+void ASimulationActor::BeginPlay()
+{
+	Super::BeginPlay();
+	StopVisualisation();
+	InitialiseSimulation();
+	CurrentSimulator = FastSimulator;
+}
+
+void ASimulationActor::Tick(float DeltaSeconds)
+{
+	Super::Tick(DeltaSeconds);
+	CurrentSimulator.Pin()->UpdateSimulation(Entities);
+	CurrentSimulator.Pin()->MoveEntites(Entities, DeltaSeconds);
+	
+	DrawDebugFast();
 }
 
 void ASimulationActor::InitialiseSimulation()
@@ -66,10 +83,10 @@ void ASimulationActor::Evaluate()
 	int NumFrames = 0;
 	while (ElapsedSimTime < SimulationLength)
 	{
-		BaselineSimulator->UpdateSimulation(BaselineEntities, SimulationTimeStep);
+		BaselineSimulator->UpdateSimulation(BaselineEntities);
 		BaselineSimulator->MoveEntites(BaselineEntities, SimulationTimeStep);
 		
-		FastSimulator->UpdateSimulation(FastSimEntities, SimulationTimeStep);
+		FastSimulator->UpdateSimulation(FastSimEntities);
 		FastSimulator->MoveEntites(FastSimEntities, SimulationTimeStep);
 		
 		BaselineSimCache.Push({});
@@ -263,7 +280,7 @@ void ASimulationActor::Simulate(const float DeltaSeconds)
 	check(CurrentSimulator.IsValid());
 	PrimarySimulationCache.Push({});
 	
-	CurrentSimulator.Pin()->UpdateSimulation(Entities, SimulationTimeStep);
+	CurrentSimulator.Pin()->UpdateSimulation(Entities);
 	CurrentSimulator.Pin()->MoveEntites(Entities, SimulationTimeStep);
 	
 	for (const FTCEntity& Entity : Entities)
@@ -685,8 +702,8 @@ void ASimulationActor::InitialiseEntityStartLocations()
 		
 		while (NumSpawned < NumEntitiesPerGroup)
 		{
-			const float S = UKismetMathLibrary::RandomFloatInRange(0, SpawnRange);
-			const float T = UKismetMathLibrary::RandomFloatInRange(0, 2 * PI);
+			const float S = UKismetMathLibrary::RandomFloatInRangeFromStream(RandomStream, 0, SpawnRange);
+			const float T = UKismetMathLibrary::RandomFloatInRangeFromStream(RandomStream, 0, 2 * PI);
 			const float X = FMath::Clamp(S * (A * FMath::Cos(T) * FMath::Cos(R) - FMath::Sin(T) * FMath::Sin(R)) + H, 0, WorldSpan);
 			const float Y = FMath::Clamp(S * (A * FMath::Cos(T) * FMath::Sin(R) + FMath::Sin(T) * FMath::Cos(R)) + K, 0, WorldSpan);
 			

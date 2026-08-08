@@ -143,13 +143,7 @@ float TCBaselineContinuumCrowdSimulator::GetFiniteDifferenceApproximation(const 
 	return ((PhiX + Cx) + (PhiY + Cy)) / 2.0f;
 }
 
-FTCCheapestNeighbor TCBaselineContinuumCrowdSimulator::GetCheapestNeighbor
-(
-	const FVector2f& Coords,
-	const EDirectionIndex First,
-	const EDirectionIndex Second,
-	const int GroupID
-)
+FTCCheapestNeighbor TCBaselineContinuumCrowdSimulator::GetCheapestNeighbor(const FVector2f& Coords, const EDirectionIndex First, const EDirectionIndex Second, const int GroupID)
 {
 	FTCBaselineCell* CurrentCell = Field.GetDataAt(Coords);
 	FTCBaselineCell* FirstNeighbor = Field.GetDataAt(Coords, DIRECTION_OFFSETS[First]);
@@ -201,14 +195,7 @@ float TCBaselineContinuumCrowdSimulator::GetSocialForceInfluence(const FVector2f
 	return PedParameters.WeakInfluence;
 }
 
-void TCBaselineContinuumCrowdSimulator::Initialize
-(
-	const float NewWorldSpan, 
-	const int NewResolution, 
-	const int NewNumGroups, 
-	const TInstancedStruct<FTCSimulationParameters> Parameters, 
-	const FTCSocialForceParameters& SocialForceParameters
-)
+void TCBaselineContinuumCrowdSimulator::Initialize(const float NewWorldSpan, const int NewResolution, const int NewNumGroups, const TInstancedStruct<FTCSimulationParameters> Parameters, const FTCSocialForceParameters& SocialForceParameters)
 {
 	ImplicitGrid.Initialize(FFloatRange(0, NewWorldSpan), NewResolution);
 	Field.Initialize(NewResolution, NewWorldSpan, {});
@@ -234,22 +221,41 @@ void TCBaselineContinuumCrowdSimulator::Initialize
 	SetAdvectionParameters(SocialForceParameters);
 }
 
-void TCBaselineContinuumCrowdSimulator::UpdateSimulation(const TArray<FTCEntity>& Entities, const float DeltaSeconds)
+void TCBaselineContinuumCrowdSimulator::UpdateSimulation(const TArray<FTCEntity>& Entities)
 {
-	UpdateDensityAndVelocityField(Entities);
-	UpdateSpeedField();
+	{
+		
+		UpdateDensityAndVelocityField(Entities);
+	}
+	{
+		
+		UpdateSpeedField();
+	}
 	
 	for (int GroupID = 0; GroupID < NumGroups; ++GroupID)
 	{
-		UpdateCostField(GroupID);
-		UpdatePotentialField_FM(GroupID);
-		UpdatePotentialGradient(GroupID);
-		UpdateDesiredVelocityField(GroupID);
+		{
+			
+			UpdateCostField(GroupID);
+		}
+		{
+			
+			UpdatePotentialField(GroupID);
+		}
+		{
+			
+			UpdatePotentialGradient(GroupID);
+		}
+		{
+			
+			UpdateDesiredVelocityField(GroupID);
+		}
 	}
 }
 
-void TCBaselineContinuumCrowdSimulator::UpdatePotentialField_FM(const int GroupID)
+void TCBaselineContinuumCrowdSimulator::UpdatePotentialField(const int GroupID)
 {
+	TRACE_CPUPROFILER_EVENT_SCOPE(Baseline - UpdatePotentialField);
 	const auto LowestPotentialOnTop = [GroupID](const FTCBaselineCell& A, const FTCBaselineCell& B) -> bool
 	{
 		return A.Potential[GroupID] < B.Potential[GroupID];
@@ -302,6 +308,7 @@ void TCBaselineContinuumCrowdSimulator::UpdatePotentialField_FM(const int GroupI
 
 void TCBaselineContinuumCrowdSimulator::UpdateDensityAndVelocityField(const TArray<FTCEntity>& Entities)
 {
+	TRACE_CPUPROFILER_EVENT_SCOPE(Baseline - UpdateDensityAndVelocityField);
 	const auto ResetCellDensityAndVelocties = [](FTCBaselineCell* Cell, const FVector2f& Coords) -> void
 	{
 		Cell->Density = 0;
@@ -367,6 +374,7 @@ void TCBaselineContinuumCrowdSimulator::UpdateDensityAndVelocityField(const TArr
 
 void TCBaselineContinuumCrowdSimulator::UpdateCostField(const int GroupID)
 {
+	TRACE_CPUPROFILER_EVENT_SCOPE(Baseline - UpdateCostField);
 	const auto CalculateCost = [this, GroupID](FTCBaselineCell* Cell, const FVector2f& Coords)
 	{
 		for(int DirectionIndex = 0; DirectionIndex < ANISOTROPY; ++DirectionIndex)
@@ -398,6 +406,7 @@ void TCBaselineContinuumCrowdSimulator::UpdateCostField(const int GroupID)
 
 void TCBaselineContinuumCrowdSimulator::UpdateSpeedField()
 {
+	TRACE_CPUPROFILER_EVENT_SCOPE(Baseline - UpdateSpeedField);
 	const auto CalculateSpeedField = [this](FTCBaselineCell* Cell, const FVector2f& Coords)
 	{
 		for(int DirectionIndex = 0; DirectionIndex < ANISOTROPY; ++DirectionIndex)
@@ -442,6 +451,7 @@ void TCBaselineContinuumCrowdSimulator::UpdateSpeedField()
 
 void TCBaselineContinuumCrowdSimulator::UpdatePotentialGradient(const int GroupID)
 {
+	TRACE_CPUPROFILER_EVENT_SCOPE(Baseline - UpdatePotentialGradient);
 	const auto Operation = [this, GroupID](FTCBaselineCell* Cell, const FVector2f& Coords) -> void
 	{
 		for (int DirectionIndex = 0; DirectionIndex < ANISOTROPY; ++DirectionIndex)
@@ -459,6 +469,7 @@ void TCBaselineContinuumCrowdSimulator::UpdatePotentialGradient(const int GroupI
 
 void TCBaselineContinuumCrowdSimulator::UpdateDesiredVelocityField(const int GroupID)
 {
+	TRACE_CPUPROFILER_EVENT_SCOPE(Baseline - UpdateDesiredVelocityField);
 	const auto CalculateDesiredVelocity = [this, GroupID](FTCBaselineCell* Cell, const FVector2f& Coords) -> void
 	{
 		float MaxPotential = TNumericLimits<float>::Min();

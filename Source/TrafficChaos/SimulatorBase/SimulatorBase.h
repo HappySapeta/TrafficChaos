@@ -82,7 +82,7 @@ public:
 	
 	virtual void Initialize(const float NewWorldSpan, const int NewResolution, const int NewNumGroups, const TInstancedStruct<FTCSimulationParameters> Parameters, const FTCSocialForceParameters& SocialForceParameters) = 0;
 	virtual void MoveEntites(TArray<FTCEntity>& Entities, const float DeltaTime) = 0;
-	virtual void UpdateSimulation(const TArray<FTCEntity>& Entities, const float DeltaTime) = 0;
+	virtual void UpdateSimulation(const TArray<FTCEntity>& Entities) = 0;
 	virtual void RegisterGoal(const int GroupID, const FVector2f& WorldLocation) = 0;
 	virtual void RegisterWall(const FVector2f& WorldLocation) = 0;
 	virtual void RegisterDiscomfort(const FVector2f& WorldLocation, const float Amount) = 0;
