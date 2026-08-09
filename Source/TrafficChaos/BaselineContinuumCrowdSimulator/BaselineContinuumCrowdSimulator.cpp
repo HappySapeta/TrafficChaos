@@ -114,27 +114,24 @@ float TCBaselineContinuumCrowdSimulator::GetFiniteDifferenceApproximation(const 
 	
 	if (PhiX == MAX_COST && PhiY < MAX_COST)
 	{
-		return FMath::Max(FMath::Sqrt(Cy) + PhiY, -FMath::Sqrt(Cy) + PhiY);
+		return PhiY + Cy;
 	}
 
 	if (PhiY == MAX_COST && PhiX < MAX_COST)
 	{
-		return FMath::Max(FMath::Sqrt(Cx) + PhiX, -FMath::Sqrt(Cx) + PhiX);
+		return PhiX + Cx;
 	}
 
-	const float QuadraticCoeffA = Cy + Cx;
-	const float QuadraticCoeffB = -2 * ((PhiX * Cy) + (PhiY * Cx));
-	const float QuadraticCoeffC = (FMath::Square(PhiX) * Cy) + (FMath::Square(PhiY) * Cx) - (Cx * Cy);
+	const float QuadraticCoeffA = FMath::Square(Cy) + FMath::Square(Cx);
+	const float QuadraticCoeffB = -2 * ((PhiX * FMath::Square(Cy)) + (PhiY * FMath::Square(Cx)));
+	const float QuadraticCoeffC = (FMath::Square(PhiX) * FMath::Square(Cy)) + (FMath::Square(PhiY) * FMath::Square(Cx)) - (FMath::Square(Cx) * FMath::Square(Cy));
 
 	const float TermUnderSqrt = FMath::Square(QuadraticCoeffB) - (4 * QuadraticCoeffA * QuadraticCoeffC);
 	if (TermUnderSqrt >= 0.0f)
 	{
-		const float FirstSolution = (-QuadraticCoeffB + FMath::Sqrt(TermUnderSqrt)) / (2 * QuadraticCoeffA);
-		const float SecondSolution = (-QuadraticCoeffB - FMath::Sqrt(TermUnderSqrt)) / (2 * QuadraticCoeffA);
+		const float ResultPotential = (-QuadraticCoeffB + FMath::Sqrt(TermUnderSqrt)) / (2 * QuadraticCoeffA);
 
-		const float ResultPotential = FMath::Max(FirstSolution, SecondSolution);
-
-		if (ResultPotential > PhiX && ResultPotential > PhiY)
+		if (ResultPotential > FMath::Max(PhiX, PhiY))
 		{
 			return ResultPotential;
 		}
@@ -416,7 +413,7 @@ void TCBaselineContinuumCrowdSimulator::UpdateSpeedField()
 			float FlowSpeed = FVector2f::DotProduct(Cell->Velocity, Direction.GetSafeNormal());
 			if (SimParameters.VelocityLookahead >= 1)
 			{
-				if(const FTCBaselineCell* NeighborCell = Field.GetDataAt(Coords, Direction * static_cast<float>(SimParameters.VelocityLookahead)))
+				if(const FTCBaselineCell* NeighborCell = Field.GetDataAt(Coords, Direction * SimParameters.VelocityLookahead))
 				{
 					FlowSpeed = FVector2f::DotProduct(NeighborCell->Velocity, Direction.GetSafeNormal());
 				}
@@ -426,7 +423,7 @@ void TCBaselineContinuumCrowdSimulator::UpdateSpeedField()
 			float Density = Cell->Density;
 			if (SimParameters.DensityLookahead >= 1)
 			{
-				if(FTCBaselineCell* NeighborCell = Field.GetDataAt(Coords, Direction * static_cast<float>(SimParameters.DensityLookahead)))
+				if(FTCBaselineCell* NeighborCell = Field.GetDataAt(Coords, Direction * SimParameters.DensityLookahead))
 				{
 					Density = NeighborCell->Density;
 				}	
@@ -442,12 +439,12 @@ void TCBaselineContinuumCrowdSimulator::UpdateSpeedField()
 			}
 			else
 			{
-				Cell->SpeedField[DirectionIndex] = PedParameters.DesiredSpeed + ((Density - SimParameters.DensityRange.GetLowerBoundValue())/(SimParameters.DensityRange.GetUpperBoundValue() - SimParameters.DensityRange.GetLowerBoundValue())) * (FlowSpeed - PedParameters.DesiredSpeed);	
+				Cell->SpeedField[DirectionIndex] = SimParameters.SpeedRange.GetUpperBoundValue() + ((Density - SimParameters.DensityRange.GetLowerBoundValue())/(SimParameters.DensityRange.GetUpperBoundValue() - SimParameters.DensityRange.GetLowerBoundValue())) * (FlowSpeed - SimParameters.SpeedRange.GetUpperBoundValue());	
 			}
 		}
 	};
 	Field.ForEachCellPerform(CalculateSpeedField);
-}
+} 
 
 void TCBaselineContinuumCrowdSimulator::UpdatePotentialGradient(const int GroupID)
 {
@@ -472,32 +469,26 @@ void TCBaselineContinuumCrowdSimulator::UpdateDesiredVelocityField(const int Gro
 	TRACE_CPUPROFILER_EVENT_SCOPE(Baseline - UpdateDesiredVelocityField);
 	const auto CalculateDesiredVelocity = [this, GroupID](FTCBaselineCell* Cell, const FVector2f& Coords) -> void
 	{
-		float MaxPotential = TNumericLimits<float>::Min();
-		float MinPotential = TNumericLimits<float>::Max();
-		for (int DirectionIndex = 0; DirectionIndex < ANISOTROPY; ++DirectionIndex)
+		Cell->DesiredVelocity[GroupID] = FVector2f::ZeroVector;
+		FVector4f NormPotentials
 		{
-			const float PotentialGradient = Cell->PotentialGradient[GroupID][DirectionIndex];
-			if (PotentialGradient > MaxPotential)
-			{
-				MaxPotential = PotentialGradient;
-			}
-			if (PotentialGradient < MinPotential)
-			{
-				MinPotential = PotentialGradient;
-			}
-		}
-
-		Cell->DesiredVelocity[GroupID] = {0, 0};
-		FVector2f DirectionVector = FVector2f::ZeroVector;
-		for (int DirectionIndex = 0; DirectionIndex < ANISOTROPY; ++DirectionIndex)
+			Cell->PotentialGradient[GroupID][NORTH],
+			Cell->PotentialGradient[GroupID][WEST],
+			Cell->PotentialGradient[GroupID][SOUTH],
+			Cell->PotentialGradient[GroupID][EAST],
+		};
+		
+		const float Length = NormPotentials.Size();
+		if (Length < 0.00001f)
 		{
-			const float PotentialGradient = Cell->PotentialGradient[GroupID][DirectionIndex];
-			const float NormPotential = UKismetMathLibrary::NormalizeToRange(PotentialGradient, MinPotential, MaxPotential);
-
-			DirectionVector += NormPotential * DIRECTION_OFFSETS[DirectionIndex];
+			return;
 		}
-
-		Cell->DesiredVelocity[GroupID] = (DirectionVector / ANISOTROPY).GetSafeNormal() * PedParameters.DesiredSpeed;
+		
+		NormPotentials /= Length;
+		Cell->DesiredVelocity[GroupID] += NormPotentials.X * Cell->SpeedField[NORTH] * DIRECTION_OFFSETS[NORTH];
+		Cell->DesiredVelocity[GroupID] += NormPotentials.Y * Cell->SpeedField[WEST] * DIRECTION_OFFSETS[WEST];
+		Cell->DesiredVelocity[GroupID] += NormPotentials.Z * Cell->SpeedField[SOUTH] * DIRECTION_OFFSETS[SOUTH];
+		Cell->DesiredVelocity[GroupID] += NormPotentials.W * Cell->SpeedField[EAST] * DIRECTION_OFFSETS[EAST];
 	};
 	Field.ForEachCellPerform(CalculateDesiredVelocity);
 }
