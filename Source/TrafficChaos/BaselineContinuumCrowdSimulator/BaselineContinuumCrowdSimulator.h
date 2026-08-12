@@ -101,6 +101,7 @@ private:
 	FTCCheapestNeighbor GetCheapestNeighbor(const FVector2f& Coords, EDirectionIndex First, EDirectionIndex Second, const int GroupID);
 	TArray<FTCNeighbor<FTCBaselineCell>> GetNeighbors(const FVector2f& Coords);
 	float GetSocialForceInfluence(const FVector2f& DesiredDirection, const FVector2f& Force);
+	FVector2f CalculateDesiredVelocity(const FVector2f& GridLocation, int GroupID);
 
 private:
 	

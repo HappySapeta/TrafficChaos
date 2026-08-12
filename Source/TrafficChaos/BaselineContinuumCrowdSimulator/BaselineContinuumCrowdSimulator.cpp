@@ -4,7 +4,7 @@
 #include "Math.h"
 #include "Kismet/KismetMathLibrary.h"
 
-constexpr float MAX_COST = TNumericLimits<float>::Max();
+constexpr float MAX_COST = 1000.0f;
 
 void TCBaselineContinuumCrowdSimulator::RegisterGoal(const int GroupID, const FVector2f& Goal)
 {
@@ -137,7 +137,7 @@ float TCBaselineContinuumCrowdSimulator::GetFiniteDifferenceApproximation(const 
 		}
 	}
 
-	return ((PhiX + Cx) + (PhiY + Cy)) / 2.0f;
+	return FMath::Min(PhiX + Cx, PhiY + Cy);
 }
 
 FTCCheapestNeighbor TCBaselineContinuumCrowdSimulator::GetCheapestNeighbor(const FVector2f& Coords, const EDirectionIndex First, const EDirectionIndex Second, const int GroupID)
@@ -284,6 +284,12 @@ void TCBaselineContinuumCrowdSimulator::UpdatePotentialField(const int GroupID)
 	{
 		FTCBaselineCell* Cell;
 		Candidates.HeapPop(Cell, LowestPotentialOnTop);
+		
+		if (Knowns.Contains(Cell))
+		{
+			continue;
+		}
+		
 		Knowns.Add(Cell);
 		
 		for (auto& [Neighbor, Direction] : GetNeighbors(Cell->Coords))
@@ -331,7 +337,7 @@ void TCBaselineContinuumCrowdSimulator::UpdateDensityAndVelocityField(const TArr
 			const float DensityContribution = FMath::Pow(std::min(Delta.X, Delta.Y), SimParameters.DensityExponent);
 			const float MaxDensityContribution = 1/FMath::Pow(2, SimParameters.DensityExponent); 
 			SouthEastCell->Density += std::min(DensityContribution, MaxDensityContribution);
-			SouthEastCell->Velocity += DensityContribution * EntityVelocity;
+			SouthEastCell->Velocity += SouthEastCell->Density * EntityVelocity;
 		}
 
 		if (FTCBaselineCell* EastCell = Field.GetDataAt(ClosestCellCenterCoords, D_EAST)) // D
@@ -339,7 +345,7 @@ void TCBaselineContinuumCrowdSimulator::UpdateDensityAndVelocityField(const TArr
 			const float DensityContribution = FMath::Pow(std::min(Delta.X, 1 - Delta.Y), SimParameters.DensityExponent);
 			const float MaxDensityContribution = 1/FMath::Pow(2, SimParameters.DensityExponent);
 			EastCell->Density += std::min(DensityContribution, MaxDensityContribution);
-			EastCell->Velocity += DensityContribution * EntityVelocity;
+			EastCell->Velocity += EastCell->Density * EntityVelocity;
 		}
 
 		if (FTCBaselineCell* CurrentCell = Field.GetDataAt(ClosestCellCenterCoords)) // A
@@ -347,7 +353,7 @@ void TCBaselineContinuumCrowdSimulator::UpdateDensityAndVelocityField(const TArr
 			const float DensityContribution = FMath::Pow(std::min(1 - Delta.X, 1 - Delta.Y), SimParameters.DensityExponent);
 			const float MinDensityContribution = 1/FMath::Pow(2, SimParameters.DensityExponent);
 			CurrentCell->Density += std::max(DensityContribution, MinDensityContribution);
-			CurrentCell->Velocity += DensityContribution * EntityVelocity;
+			CurrentCell->Velocity += CurrentCell->Density * EntityVelocity;
 		}
 
 		if (FTCBaselineCell* SouthCell = Field.GetDataAt(ClosestCellCenterCoords, D_SOUTH)) // B
@@ -355,7 +361,7 @@ void TCBaselineContinuumCrowdSimulator::UpdateDensityAndVelocityField(const TArr
 			const float DensityContribution = FMath::Pow(std::min(1 - Delta.X, Delta.Y), SimParameters.DensityExponent);
 			const float MaxDensityContribution = 1/FMath::Pow(2, SimParameters.DensityExponent);
 			SouthCell->Density += std::min(DensityContribution, MaxDensityContribution);
-			SouthCell->Velocity += DensityContribution * EntityVelocity;
+			SouthCell->Velocity += SouthCell->Density * EntityVelocity;
 		}
 	}
 	
@@ -458,6 +464,10 @@ void TCBaselineContinuumCrowdSimulator::UpdatePotentialGradient(const int GroupI
 				const float Gradient = Cell->Potential[GroupID] - Neighbor->Potential[GroupID];
 				Cell->PotentialGradient[GroupID][DirectionIndex] = Gradient;
 			}
+			else
+			{
+				Cell->PotentialGradient[GroupID][DirectionIndex] = 0;
+			}
 		}
 	};
 
@@ -491,4 +501,28 @@ void TCBaselineContinuumCrowdSimulator::UpdateDesiredVelocityField(const int Gro
 		Cell->DesiredVelocity[GroupID] += NormPotentials.W * Cell->SpeedField[EAST] * DIRECTION_OFFSETS[EAST];
 	};
 	Field.ForEachCellPerform(CalculateDesiredVelocity);
+}
+
+FVector2f TCBaselineContinuumCrowdSimulator::CalculateDesiredVelocity(const FVector2f& GridLocation, const int GroupID)
+{
+	FVector2f DesiredVelocity = FVector2f::ZeroVector;
+	
+	int NumSampledLocations = 0;
+	const auto SampleVelocity = [this, GroupID, GridLocation, &NumSampledLocations](const FVector2f& Offset) -> FVector2f
+	{
+		if (FTCBaselineCell* Cell = Field.GetDataAt(GridLocation, Offset))
+		{
+			++NumSampledLocations;
+			return Cell->DesiredVelocity[GroupID];
+		}
+		
+		return FVector2f::ZeroVector;
+	};
+	
+	for (const FVector2f& Offset : DIRECTION_OFFSETS)
+	{
+		DesiredVelocity += SampleVelocity(Offset);
+	}
+	
+	return DesiredVelocity / NumSampledLocations; 
 }

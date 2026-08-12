@@ -49,6 +49,9 @@ struct FTCFastSimulationParameters : public FTCSimulationParameters
 	
 	UPROPERTY(EditAnywhere, meta = (ClampMin = 0, UIMin = 0))
 	float DensityExponent = 1.0f;
+	
+	UPROPERTY(EditAnywhere, meta = (ClampMin = 0, UIMin = 0))
+	float CostExponent = 1.0f;
 };
 
 class TRAFFICCHAOS_API TCFastContinuumCrowdSimulator : public TCSimulatorBase
@@ -93,6 +96,7 @@ private:
 	TArray<FTCNeighbor<FTCFastCell>> GetNeighbors(const FVector2f& Coords);
 	float GetSocialForceInfluence(const FVector2f& DesiredDirection, const FVector2f& Force);
 	EDirectionIndex ConvertVectorToDirectionIndex(const FVector2f& Vector) const;
+	FVector2f CalculatedDesiredVelocity(const FVector2f& GridLocation, const int GroupID);
 
 	int NumGroups = 0;
 	FRpSpatialData<FTCFastCell> Field;

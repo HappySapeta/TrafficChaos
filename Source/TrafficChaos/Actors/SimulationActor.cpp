@@ -20,7 +20,15 @@ void ASimulationActor::BeginPlay()
 	Super::BeginPlay();
 	StopVisualisation();
 	InitialiseSimulation();
-	CurrentSimulator = FastSimulator;
+	switch (SimulatorType)
+	{
+		case ESimulatorType::Baseline:
+			CurrentSimulator = BaselineSimulator;
+			break;
+		case ESimulatorType::Fast:
+			CurrentSimulator = FastSimulator;
+			break;
+	}
 }
 
 void ASimulationActor::Tick(float DeltaSeconds)
@@ -28,8 +36,16 @@ void ASimulationActor::Tick(float DeltaSeconds)
 	Super::Tick(DeltaSeconds);
 	CurrentSimulator.Pin()->UpdateSimulation(Entities);
 	CurrentSimulator.Pin()->MoveEntites(Entities, DeltaSeconds);
-	
-	DrawDebugFast();
+
+	switch (SimulatorType)
+	{
+		case ESimulatorType::Baseline:
+			DrawDebugBaseline();
+			break;
+		case ESimulatorType::Fast:
+			DrawDebugFast();
+			break;
+	}
 }
 
 void ASimulationActor::InitialiseSimulation()
