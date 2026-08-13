@@ -13,7 +13,7 @@ void TCBaselineContinuumCrowdSimulator::RegisterGoal(const int GroupID, const FV
 
 void TCBaselineContinuumCrowdSimulator::RegisterWall(const FVector2f& WallCoords)
 {
-	if (FTCBaselineCell* Cell = Field.GetDataAt(Field.WorldToGrid(WallCoords)))
+	if (FTCBaselineCell* Cell = Field.GetDataAt(Field.WorldToGridIndices(WallCoords)))
 	{
 		for (int GroupID = 0; GroupID < NumGroups; ++GroupID)
 		{
@@ -25,7 +25,7 @@ void TCBaselineContinuumCrowdSimulator::RegisterWall(const FVector2f& WallCoords
 
 void TCBaselineContinuumCrowdSimulator::RegisterDiscomfort(const FVector2f& WallCoords, const float Amount)
 {
-	if (FTCBaselineCell* Cell = Field.GetDataAt(Field.WorldToGrid(WallCoords)))
+	if (FTCBaselineCell* Cell = Field.GetDataAt(Field.WorldToGridIndices(WallCoords)))
 	{
 		for (int GroupID = 0; GroupID < NumGroups; ++GroupID)
 		{
@@ -59,7 +59,7 @@ void TCBaselineContinuumCrowdSimulator::MoveEntites(TArray<FTCEntity>& Entities,
 		const FVector2f& CurrentVelocity = Entities[EntityIndex].Velocity;
 		const FVector2f& CurrentPosition = Entities[EntityIndex].Position;
 
-		const FVector2f GridLocation = Field.WorldToGrid(CurrentPosition);
+		const FVector2f GridLocation = Field.WorldToGridIndices(CurrentPosition);
 		const FVector2f DesiredVelocity = Field.GetDataAt(GridLocation)->DesiredVelocity[Entities[EntityIndex].GroupID];
 		const FVector2f DesiredDirection = DesiredVelocity.GetSafeNormal();
 		const FVector2f DrivingForce = FTCSocialForces::GetDrivingForce(CurrentVelocity, DesiredDirection, PedParameters);
@@ -261,7 +261,7 @@ void TCBaselineContinuumCrowdSimulator::UpdatePotentialField(const int GroupID)
 	Knowns.Reset();
 	Candidates.Reset();
 	
-	FTCBaselineCell* GoalCell = Field.GetDataAt(Field.WorldToGrid(Goals[GroupID]));
+	FTCBaselineCell* GoalCell = Field.GetDataAt(Field.WorldToGridIndices(Goals[GroupID]));
 	GoalCell->Potential[GroupID] = 0;
 	Knowns.Add(GoalCell);
 	
@@ -328,7 +328,7 @@ void TCBaselineContinuumCrowdSimulator::UpdateDensityAndVelocityField(const TArr
 			continue;
 		}
 		
-		const FVector2f EntityPreciseCoords = Field.WorldToGridCentered(EntityPosition);
+		const FVector2f EntityPreciseCoords = Field.WorldToGridLocation(EntityPosition);
 		const FVector2f ClosestCellCenterCoords = {FMath::RoundToInt(EntityPreciseCoords.X) - 0.5f, FMath::RoundToInt(EntityPreciseCoords.Y) - 0.5f};
 
 		const FVector2f Delta = EntityPreciseCoords - ClosestCellCenterCoords;
