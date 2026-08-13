@@ -49,6 +49,9 @@ struct FTCFastSimulationParameters : public FTCSimulationParameters
 	
 	UPROPERTY(EditAnywhere, meta = (ClampMin = 0, UIMin = 0))
 	float DensityExponent = 1.0f;
+	
+	UPROPERTY(EditAnywhere, meta = (ClampMin = 0, UIMin = 0))
+	float CostExponent = 1.0f;
 };
 
 class TRAFFICCHAOS_API TCFastContinuumCrowdSimulator : public TCSimulatorBase
@@ -77,7 +80,7 @@ public:
 	
 	virtual void Initialize(const float NewWorldSpan, const int NewResolution, const int NewNumGroups, const TInstancedStruct<FTCSimulationParameters> Parameters, const FTCSocialForceParameters& SocialForceParameters) override;
 	virtual void MoveEntites(TArray<FTCEntity>& Entities, const float DeltaTime) override;
-	virtual void UpdateSimulation(const TArray<FTCEntity>& Entities, const float DeltaTime) override;
+	virtual void UpdateSimulation(const TArray<FTCEntity>& Entities) override;
 	virtual void RegisterGoal(const int GroupID, const FVector2f& WorldLocation) override;
 	virtual void RegisterWall(const FVector2f& WorldLocation) override;
 	virtual void RegisterDiscomfort(const FVector2f& WorldLocation, const float Amount) override;
@@ -93,6 +96,7 @@ private:
 	TArray<FTCNeighbor<FTCFastCell>> GetNeighbors(const FVector2f& Coords);
 	float GetSocialForceInfluence(const FVector2f& DesiredDirection, const FVector2f& Force);
 	EDirectionIndex ConvertVectorToDirectionIndex(const FVector2f& Vector) const;
+	FVector2f CalculatedDesiredVelocity(const FVector2f& GridLocation, const int GroupID);
 
 	int NumGroups = 0;
 	FRpSpatialData<FTCFastCell> Field;

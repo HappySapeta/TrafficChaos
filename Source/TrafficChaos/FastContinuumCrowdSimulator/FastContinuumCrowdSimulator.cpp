@@ -4,14 +4,9 @@
 #include "Math.h"
 #include "Kismet/KismetMathLibrary.h"
 
-constexpr float MAX_COST = TNumericLimits<float>::Max();
+constexpr float MAX_COST = 1000.0f;
 
-void TCFastContinuumCrowdSimulator::Initialize
-(
-	const float NewWorldSpan, const int NewResolution, const int NewNumGroups, 
-	const TInstancedStruct<FTCSimulationParameters>
-	Parameters, const FTCSocialForceParameters& SocialForceParameters
-)
+void TCFastContinuumCrowdSimulator::Initialize(const float NewWorldSpan, const int NewResolution, const int NewNumGroups, const TInstancedStruct<FTCSimulationParameters>Parameters, const FTCSocialForceParameters& SocialForceParameters)
 {
 	ImplicitGrid.Initialize(FFloatRange(0, NewWorldSpan), NewResolution);
 	Field.Initialize(NewResolution, NewWorldSpan, {});
@@ -41,12 +36,12 @@ void TCFastContinuumCrowdSimulator::Initialize
 
 void TCFastContinuumCrowdSimulator::RegisterGoal(const int GroupID, const FVector2f& WorldLocation)
 {
-	Goals.Add({GroupID, Field.WorldToGrid(WorldLocation)});
+	Goals.Add({GroupID, Field.WorldToGridIndices(WorldLocation)});
 }
 
 void TCFastContinuumCrowdSimulator::RegisterWall(const FVector2f& WallCoords)
 {
-	if (FTCFastCell* Cell = Field.GetDataAt(Field.WorldToGrid(WallCoords)))
+	if (FTCFastCell* Cell = Field.GetDataAt(Field.WorldToGridIndices(WallCoords)))
 	{
 		for (int GroupID = 0; GroupID < NumGroups; ++GroupID)
 		{
@@ -58,11 +53,10 @@ void TCFastContinuumCrowdSimulator::RegisterWall(const FVector2f& WallCoords)
 
 void TCFastContinuumCrowdSimulator::RegisterDiscomfort(const FVector2f& WallCoords, const float Amount)
 {
-	if (FTCFastCell* Cell = Field.GetDataAt(Field.WorldToGrid(WallCoords)))
+	if (FTCFastCell* Cell = Field.GetDataAt(Field.WorldToGridIndices(WallCoords)))
 	{
 		for (int GroupID = 0; GroupID < NumGroups; ++GroupID)
 		{
-			Cell->Potential[GroupID] = MAX_COST;
 			Cell->Discomfort = Amount * TNumericLimits<uint8>::Max();
 		}
 	}
@@ -92,8 +86,8 @@ void TCFastContinuumCrowdSimulator::MoveEntites(TArray<FTCEntity>& Entities, con
 		const FVector2f& CurrentVelocity = Entities[EntityIndex].Velocity;
 		const FVector2f& CurrentPosition = Entities[EntityIndex].Position;
 
-		const FVector2f GridLocation = Field.WorldToGrid(CurrentPosition);
-		const FVector2f DesiredVelocity = Field.GetDataAt(GridLocation)->DesiredVelocity[Entities[EntityIndex].GroupID];
+		const FVector2f GridLocation = Field.WorldToGridIndices(CurrentPosition);
+		const FVector2f DesiredVelocity = Field.GetDataAt(GridLocation)->DesiredVelocity[Entities[EntityIndex].GroupID]; // CalculatedDesiredVelocity(GridLocation, Entities[EntityIndex].GroupID);
 		const FVector2f DesiredDirection = DesiredVelocity.GetSafeNormal();
 		const FVector2f DrivingForce = FTCSocialForces::GetDrivingForce(CurrentVelocity, DesiredDirection, PedParameters);
 		Force += GetSocialForceInfluence(DesiredDirection, DrivingForce) * DrivingForce;
@@ -135,7 +129,7 @@ void TCFastContinuumCrowdSimulator::MoveEntites(TArray<FTCEntity>& Entities, con
 	}
 }
 
-void TCFastContinuumCrowdSimulator::UpdateSimulation(const TArray<FTCEntity>& Entities, const float DeltaSeconds)
+void TCFastContinuumCrowdSimulator::UpdateSimulation(const TArray<FTCEntity>& Entities)
 {
 	UpdateDensityAndVelocityField(Entities);
 	UpdateCostField();
@@ -148,8 +142,9 @@ void TCFastContinuumCrowdSimulator::UpdateSimulation(const TArray<FTCEntity>& En
 
 void TCFastContinuumCrowdSimulator::UpdateDensityAndVelocityField(const TArray<FTCEntity>& Entities)
 {
+	TRACE_CPUPROFILER_EVENT_SCOPE(Fast - UpdateDensityAndVelocityField);
 	const auto ResetCellDensityAndVelocties = [](FTCFastCell* Cell, const FVector2f& Coords) -> void
-	{
+	{ 
 		Cell->ByteDensity = 0;
 		Cell->Direction = EDirectionIndex::NONE;
 	};
@@ -164,30 +159,21 @@ void TCFastContinuumCrowdSimulator::UpdateDensityAndVelocityField(const TArray<F
 			continue;
 		}
 
-		if (FTCFastCell* Cell = Field.GetDataAt(Field.WorldToGrid(EntityPosition)))
+		if (FTCFastCell* Cell = Field.GetDataAt(Field.WorldToGridIndices(EntityPosition)))
 		{
-			Cell->ByteDensity = Cell->ByteDensity + 1 == 0 ? TNumericLimits<uint8>::Max() : Cell->ByteDensity + 1;
-
-			Cell->Direction = ConvertVectorToDirectionIndex
-			(
-				DIRECTION_OFFSETS[Cell->Direction].GetSafeNormal() + EntityVelocity.GetSafeNormal()
-			);
+			Cell->ByteDensity = Cell->ByteDensity < TNumericLimits<uint8>::Max() ? Cell->ByteDensity + 1 : Cell->ByteDensity;
+			int PreviousDensity = Cell->ByteDensity > 0 ? Cell->ByteDensity - 1 : 0;
+			FVector2f AccumulatedVelocity = PreviousDensity * DIRECTION_OFFSETS[Cell->Direction]; 
+			AccumulatedVelocity += EntityVelocity;
+			const FVector2f AverageVelocity = AccumulatedVelocity / Cell->ByteDensity;
+			Cell->Direction = ConvertVectorToDirectionIndex(AverageVelocity);
 		}
 	}
-	
-	const auto CalcAverageVelocity = [this](FTCFastCell* Cell, const FVector2f& Coords) -> void
-	{
-		if (Cell->ByteDensity != 0)
-		{
-			const FVector2f& AvgDirection = DIRECTION_OFFSETS[Cell->Direction] / Cell->ByteDensity;
-			Cell->Direction = ConvertVectorToDirectionIndex(AvgDirection);
-		}
-	};
-	Field.ForEachCellPerform(CalcAverageVelocity);
 }
 
 void TCFastContinuumCrowdSimulator::UpdateCostField()
 {
+	TRACE_CPUPROFILER_EVENT_SCOPE(Fast - UpdateCostField);
 	const auto CalculateCost = [this](FTCFastCell* CurrentCell, const FVector2f& Coords)
 	{
 		for (int DirectionIndex = 0; DirectionIndex < ANISOTROPY; ++DirectionIndex)
@@ -232,7 +218,7 @@ void TCFastContinuumCrowdSimulator::UpdateCostField()
 				TotalCost += (NeighborCell->Discomfort / static_cast<float>(TNumericLimits<uint8>::Max())) * SimParameters.DiscomfortConstant;
 			}
 			
-			CurrentCell->CostField[DirectionIndex] = TotalCost;
+			CurrentCell->CostField[DirectionIndex] = FMath::Pow(TotalCost, SimParameters.CostExponent);
 		}
 	}; 
 	Field.ForEachCellPerform(CalculateCost);
@@ -240,6 +226,7 @@ void TCFastContinuumCrowdSimulator::UpdateCostField()
 
 void TCFastContinuumCrowdSimulator::UpdatePotentialField(const int GroupID)
 {
+	TRACE_CPUPROFILER_EVENT_SCOPE(Fast - UpdatePotentialField);
 	check(Goals.Contains(GroupID));
 
 	const FVector2f GoalCoords = Goals[GroupID];
@@ -270,6 +257,12 @@ void TCFastContinuumCrowdSimulator::UpdatePotentialField(const int GroupID)
 	{
 		FTCFastCell* Current = Candidates.First();
 		Candidates.PopFirst();
+		
+		if (Knowns.Contains(Current))
+		{
+			continue;
+		}
+		
 		Knowns.Add(Current);
 		
 		const TArray<FTCNeighbor<FTCFastCell>> Neighbors = GetNeighbors(Current->Coords);
@@ -292,37 +285,41 @@ void TCFastContinuumCrowdSimulator::UpdatePotentialField(const int GroupID)
 
 void TCFastContinuumCrowdSimulator::UpdateDesiredVelocityField(const int GroupID)
 {
+	TRACE_CPUPROFILER_EVENT_SCOPE(Fast - UpdateDesiredVelocityField);
 	const auto CalculateDesiredVelocity = [this, GroupID](FTCFastCell* Cell, const FVector2f& Coords) -> void
 	{
-		Cell->DesiredVelocity[GroupID] = {0, 0};
-		FVector2f DirectionVector = FVector2f::ZeroVector;
+		Cell->DesiredVelocity[GroupID] = FVector2f::ZeroVector;
 		
-		float MaxPotential = 0.0f;
-		for (int DirectionIndex = 0; DirectionIndex < ANISOTROPY; ++DirectionIndex)
+		const auto GetPotentialGradient = [this, Coords, GroupID, Cell](const EDirectionIndex DirectionIndex) -> float
 		{
-			if (const FTCFastCell* Neighbor = Field.GetDataAt(Cell->Coords, DIRECTION_OFFSETS[DirectionIndex]))
+			if (FTCFastCell* Neighbor = Field.GetDataAt(Coords, DIRECTION_OFFSETS[DirectionIndex]))
 			{
-				const float& Potential = Neighbor->Potential[GroupID];
-				if (Potential > MaxPotential)
-				{
-					MaxPotential = Potential;
-				}
+				return Cell->Potential[GroupID] - Neighbor->Potential[GroupID];
 			}
+			return 0;
+		};
+		
+		FVector4f NormPotentials;
+		
+		NormPotentials.X = GetPotentialGradient(NORTH);
+		NormPotentials.Y = GetPotentialGradient(WEST);
+		NormPotentials.Z = GetPotentialGradient(SOUTH);
+		NormPotentials.W = GetPotentialGradient(EAST);
+		
+		const float Length = NormPotentials.Size();
+		if (Length < 0.00001f)
+		{
+			return;
 		}
 		
-		for (int DirectionIndex = 0; DirectionIndex < ANISOTROPY; ++DirectionIndex)
-		{
-			if (const FTCFastCell* Neighbor = Field.GetDataAt(Cell->Coords, DIRECTION_OFFSETS[DirectionIndex]))
-			{
-				const float PotentialGradient = Cell->Potential[GroupID] - Neighbor->Potential[GroupID];
-				const float NormPotential = UKismetMathLibrary::NormalizeToRange(PotentialGradient, 0, MaxPotential);
-
-				DirectionVector += NormPotential * DIRECTION_OFFSETS[DirectionIndex];
-			}
-		}
-
-		Cell->DesiredVelocity[GroupID] = (DirectionVector / ANISOTROPY).GetSafeNormal() * PedParameters.DesiredSpeed;
-	};
+		NormPotentials /= Length;
+		Cell->DesiredVelocity[GroupID] += NormPotentials.X * DIRECTION_OFFSETS[NORTH];
+		Cell->DesiredVelocity[GroupID] += NormPotentials.Y * DIRECTION_OFFSETS[WEST];
+		Cell->DesiredVelocity[GroupID] += NormPotentials.Z * DIRECTION_OFFSETS[SOUTH];
+		Cell->DesiredVelocity[GroupID] += NormPotentials.W * DIRECTION_OFFSETS[EAST];
+		
+		Cell->DesiredVelocity[GroupID] /= 4;
+	}; 
 	Field.ForEachCellPerform(CalculateDesiredVelocity);
 }
 
@@ -420,11 +417,10 @@ EDirectionIndex TCFastContinuumCrowdSimulator::ConvertVectorToDirectionIndex(con
 {
 	uint8 Result = 0;
 	float MaxDotProduct = -1.0f;
-	const FVector2f& InputDirection = Vector.GetSafeNormal();
 
 	for (int DirectionIndex = 0; DirectionIndex < NUM_OFFSETS; ++DirectionIndex)
 	{
-		const float DotProduct = FVector2f::DotProduct(DIRECTION_OFFSETS[DirectionIndex].GetSafeNormal(), InputDirection);
+		const float DotProduct = FVector2f::DotProduct(DIRECTION_OFFSETS[DirectionIndex], Vector);
 		if (DotProduct > MaxDotProduct)
 		{
 			MaxDotProduct = DotProduct;
@@ -433,4 +429,28 @@ EDirectionIndex TCFastContinuumCrowdSimulator::ConvertVectorToDirectionIndex(con
 	}
 
 	return static_cast<EDirectionIndex>(Result);
+}
+
+FVector2f TCFastContinuumCrowdSimulator::CalculatedDesiredVelocity(const FVector2f& GridLocation, const int GroupID)
+{
+	FVector2f DesiredVelocity = FVector2f::ZeroVector;
+	
+	int NumSampledLocations = 0;
+	const auto SampleVelocity = [this, GroupID, GridLocation, &NumSampledLocations](const FVector2f& Offset) -> FVector2f
+	{
+		if (FTCFastCell* Cell = Field.GetDataAt(GridLocation, Offset))
+		{
+			++NumSampledLocations;
+			return Cell->DesiredVelocity[GroupID];
+		}
+		
+		return FVector2f::ZeroVector;
+	};
+	
+	for (const FVector2f& Offset : DIRECTION_OFFSETS)
+	{
+		DesiredVelocity += SampleVelocity(Offset);
+	}
+	
+	return DesiredVelocity / NumSampledLocations; 
 }

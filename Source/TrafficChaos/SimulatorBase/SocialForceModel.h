@@ -53,6 +53,16 @@ public:
 	{
 		return (Parameters.DesiredSpeed * DesiredDirection - CurrentVelocity) / Parameters.RelaxationTime; 
 	}
+	
+	static FVector2f GetDrivingForceForVelocity
+	(
+		const FVector2f& CurrentVelocity, 
+		const FVector2f& DesiredVelocity,
+		const FTCSocialForceParameters& Parameters = {}
+	)
+	{
+		return (DesiredVelocity - CurrentVelocity) / Parameters.RelaxationTime; 
+	}
 
 	static FVector2f GetAvoidanceForce
 	(

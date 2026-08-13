@@ -87,6 +87,13 @@ struct FTCDiscomfortZone
 	float Amount = 1.0f;
 };
 
+UENUM()
+enum class ESimulatorType
+{
+	Baseline,
+	Fast
+};
+
 UCLASS()
 class TRAFFICCHAOS_API ASimulationActor : public AActor
 {
@@ -97,6 +104,8 @@ public:
 	// Sets default values for this actor's properties 
 	ASimulationActor();
 
+	void Tick(float DeltaSeconds) override;
+	
 	UFUNCTION(CallInEditor, Category = "Simulation Commands")
 	void SimulateFast();
 	
@@ -117,6 +126,10 @@ public:
 	
 	virtual void PostEditChangeProperty(struct FPropertyChangedEvent& PropertyChangedEvent) override;
 	
+protected:
+	
+	void BeginPlay() override;
+	
 private:
 	
 	void InitialiseSimulation();
@@ -128,6 +141,9 @@ private:
 	void MetricCompare(const TArray<FTCEntity>& Reference, const TArray<FTCEntity>& Test);
 	
 private:
+	
+	UPROPERTY(EditAnywhere, Category = "PIE Settings")
+	ESimulatorType SimulatorType = ESimulatorType::Fast;
 	
 	UPROPERTY(EditAnywhere, Category = "Simulation Settings")
 	float SimulationTimeStep = 0.1f;
