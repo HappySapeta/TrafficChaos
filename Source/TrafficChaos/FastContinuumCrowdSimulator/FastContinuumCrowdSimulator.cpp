@@ -36,12 +36,12 @@ void TCFastContinuumCrowdSimulator::Initialize(const float NewWorldSpan, const i
 
 void TCFastContinuumCrowdSimulator::RegisterGoal(const int GroupID, const FVector2f& WorldLocation)
 {
-	Goals.Add({GroupID, Field.WorldToGrid(WorldLocation)});
+	Goals.Add({GroupID, Field.WorldToGridIndices(WorldLocation)});
 }
 
 void TCFastContinuumCrowdSimulator::RegisterWall(const FVector2f& WallCoords)
 {
-	if (FTCFastCell* Cell = Field.GetDataAt(Field.WorldToGrid(WallCoords)))
+	if (FTCFastCell* Cell = Field.GetDataAt(Field.WorldToGridIndices(WallCoords)))
 	{
 		for (int GroupID = 0; GroupID < NumGroups; ++GroupID)
 		{
@@ -53,7 +53,7 @@ void TCFastContinuumCrowdSimulator::RegisterWall(const FVector2f& WallCoords)
 
 void TCFastContinuumCrowdSimulator::RegisterDiscomfort(const FVector2f& WallCoords, const float Amount)
 {
-	if (FTCFastCell* Cell = Field.GetDataAt(Field.WorldToGrid(WallCoords)))
+	if (FTCFastCell* Cell = Field.GetDataAt(Field.WorldToGridIndices(WallCoords)))
 	{
 		for (int GroupID = 0; GroupID < NumGroups; ++GroupID)
 		{
@@ -86,7 +86,7 @@ void TCFastContinuumCrowdSimulator::MoveEntites(TArray<FTCEntity>& Entities, con
 		const FVector2f& CurrentVelocity = Entities[EntityIndex].Velocity;
 		const FVector2f& CurrentPosition = Entities[EntityIndex].Position;
 
-		const FVector2f GridLocation = Field.WorldToGrid(CurrentPosition);
+		const FVector2f GridLocation = Field.WorldToGridIndices(CurrentPosition);
 		const FVector2f DesiredVelocity = Field.GetDataAt(GridLocation)->DesiredVelocity[Entities[EntityIndex].GroupID]; // CalculatedDesiredVelocity(GridLocation, Entities[EntityIndex].GroupID);
 		const FVector2f DesiredDirection = DesiredVelocity.GetSafeNormal();
 		const FVector2f DrivingForce = FTCSocialForces::GetDrivingForce(CurrentVelocity, DesiredDirection, PedParameters);
@@ -159,7 +159,7 @@ void TCFastContinuumCrowdSimulator::UpdateDensityAndVelocityField(const TArray<F
 			continue;
 		}
 
-		if (FTCFastCell* Cell = Field.GetDataAt(Field.WorldToGrid(EntityPosition)))
+		if (FTCFastCell* Cell = Field.GetDataAt(Field.WorldToGridIndices(EntityPosition)))
 		{
 			Cell->ByteDensity = Cell->ByteDensity < TNumericLimits<uint8>::Max() ? Cell->ByteDensity + 1 : Cell->ByteDensity;
 			int PreviousDensity = Cell->ByteDensity > 0 ? Cell->ByteDensity - 1 : 0;

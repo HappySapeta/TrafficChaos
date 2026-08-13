@@ -726,14 +726,14 @@ void ASimulationActor::InitialiseEntityStartLocations()
 			const FVector2f NewPosition{X, Y};
 			{
 				const FRpSpatialData<FTCFastCell>& Field = StaticCastSharedPtr<TCFastContinuumCrowdSimulator>(FastSimulator)->GetFieldData();
-				if (Field.GetDataAt(Field.WorldToGrid(NewPosition))->bIsWall)
+				if (Field.GetDataAt(Field.WorldToGridIndices(NewPosition))->bIsWall)
 				{
 					continue;
 				}
 			}
 			{
 				const FRpSpatialData<FTCBaselineCell>& Field = StaticCastSharedPtr<TCBaselineContinuumCrowdSimulator>(BaselineSimulator)->GetFieldData();
-				if (Field.GetDataAt(Field.WorldToGrid(NewPosition))->bIsWall)
+				if (Field.GetDataAt(Field.WorldToGridIndices(NewPosition))->bIsWall)
 				{
 					continue;
 				}
