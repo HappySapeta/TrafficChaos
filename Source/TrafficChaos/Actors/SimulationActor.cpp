@@ -89,6 +89,8 @@ void ASimulationActor::Evaluate()
 		ReferencePreviousPositions[Index] = Position;
 		TestPreviousPositions[Index] = Position;
 	}
+	BaselineCollisions.Init(0, Entities.Num());
+	TestCollisions.Init(0, Entities.Num());
 	
 	BaselineSimCache.Reset();
 	FastSimCache.Reset();
@@ -131,6 +133,7 @@ void ASimulationActor::Evaluate()
 	}
 	
 	UE_LOG(LogTemp, Warning, TEXT("Abs Diff = %f, Path Length = %f, InterPed Dist = %f"), AvgAbsoluteDifferenceMetric, AvgPathLengthMetric, AvgInterPedDistanceMetric);
+	UE_LOG(LogTemp, Warning, TEXT("Number of collisions in baseline = %d, Number of collisions in test = %d"), Algo::Accumulate(BaselineCollisions, 0), Algo::Accumulate(TestCollisions, 0));
 }
 
 void ASimulationActor::MetricCompare(const TArray<FTCEntity>& Reference, const TArray<FTCEntity>& Test)
@@ -143,18 +146,18 @@ void ASimulationActor::MetricCompare(const TArray<FTCEntity>& Reference, const T
 	
 	for (int Index = 0; Index < NumEntities; ++Index)
 	{
-		const FVector2f& ReferencePosition = Reference[Index].Position;
+		const FVector2f& BaselinePosition = Reference[Index].Position;
 		const FVector2f& TestPosition = Test[Index].Position;
 		
 		// Absolute Difference Metric
-		AbsoluteDifferenceMetric += FVector2f::Distance(ReferencePosition, TestPosition);
+		AbsoluteDifferenceMetric += FVector2f::Distance(BaselinePosition, TestPosition);
 		
 		// Path Length Metric
 		{
 			const FVector2f& ReferencePreviousPosition = ReferencePreviousPositions[Index];
 			const FVector2f& TestPreviousPosition = TestPreviousPositions[Index];
-			PathLengthMetric += FVector2f::Distance(ReferencePreviousPosition, ReferencePosition) - FVector2f::Distance(TestPreviousPosition, TestPosition);
-			ReferencePreviousPositions[Index] = ReferencePosition;
+			PathLengthMetric += FVector2f::Distance(ReferencePreviousPosition, BaselinePosition) - FVector2f::Distance(TestPreviousPosition, TestPosition);
+			ReferencePreviousPositions[Index] = BaselinePosition;
 			TestPreviousPositions[Index] = TestPosition;
 		}
 		
@@ -167,7 +170,7 @@ void ASimulationActor::MetricCompare(const TArray<FTCEntity>& Reference, const T
 			{
 				const FVector2f& BaselineOtherPosition = Reference[OtherIndex].Position;
 				const FVector2f& TestOtherPosition = Test[OtherIndex].Position;
-				ReferenceInterPedDistance += FVector2f::Distance(BaselineOtherPosition, ReferencePosition);
+				ReferenceInterPedDistance += FVector2f::Distance(BaselineOtherPosition, BaselinePosition);
 				TestInterPedDistance += FVector2f::Distance(TestOtherPosition, TestPosition);
 			}
 		
@@ -175,6 +178,28 @@ void ASimulationActor::MetricCompare(const TArray<FTCEntity>& Reference, const T
 			TestInterPedDistance /= (NumEntities - 1);
 		
 			InterPedDistanceMetric += FMath::Abs(ReferenceInterPedDistance - TestInterPedDistance);
+		}
+		
+		// Collisions metric
+		{
+			for (int OtherIndex = Index + 1; OtherIndex < NumEntities; ++OtherIndex)
+			{
+				const FVector2f& BaselineOtherPosition = Reference[OtherIndex].Position;
+				
+				if (FVector2f::Distance(BaselinePosition, BaselineOtherPosition) < (SocialForceParams.PedestrianHalfSize * 1.01f))
+				{
+					BaselineCollisions[Index] += 1;
+				}
+			}
+			for (int OtherIndex = Index + 1; OtherIndex < NumEntities; ++OtherIndex)
+			{
+				const FVector2f& TestOtherPosition = Test[OtherIndex].Position;
+				
+				if (FVector2f::Distance(TestPosition, TestOtherPosition) < (SocialForceParams.PedestrianHalfSize * 1.01f))
+				{
+					TestCollisions[Index] += 1;
+				}
+			}
 		}
 	}
 	
@@ -326,7 +351,7 @@ void ASimulationActor::DrawDebugBaseline()
 			}
 			
 			const FVector Position = {Entity.Position.X, Entity.Position.Y, 0.0f};
-			DrawDebugSphere(World, Position, 25.0f, 10, EntityColors[Entity.GroupID]);
+			DrawDebugSphere(World, Position, SocialForceParams.PedestrianHalfSize, 10, EntityColors[Entity.GroupID]);
 			if (DebugSettings.bDrawTraces)
 			{
 				DrawDebugPoint(World, Position, 2.0f, EntityColors[Entity.GroupID], false, 20.0f);

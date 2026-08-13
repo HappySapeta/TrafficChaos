@@ -37,6 +37,9 @@ struct FTCSocialForceParameters
 	float MaxTurnAngle = 90.0f;
 	
 	UPROPERTY(EditAnywhere)
+	float PedestrianHalfSize = 25.0f;
+	
+	UPROPERTY(EditAnywhere)
 	float HalfFOV = 100.0f;
 };
 

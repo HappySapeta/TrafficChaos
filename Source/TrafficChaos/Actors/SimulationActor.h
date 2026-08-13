@@ -220,4 +220,6 @@ private: // Metrics
 	float AvgInterPedDistanceMetric = 0.0f;
 	TArray<FVector2f> ReferencePreviousPositions;
 	TArray<FVector2f> TestPreviousPositions;
+	TArray<int> BaselineCollisions;
+	TArray<int> TestCollisions;
 };
