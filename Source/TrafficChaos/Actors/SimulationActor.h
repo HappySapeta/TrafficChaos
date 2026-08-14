@@ -138,7 +138,7 @@ private:
 	void InitialiseEntityStartLocations();
 	void DrawDebugBaseline();
 	void DrawDebugFast();
-	void MetricCompare(const TArray<FTCEntity>& Reference, const TArray<FTCEntity>& Test);
+	void MetricCompare(const TArray<FTCEntity>& Baseline, const TArray<FTCEntity>& Test);
 	
 private:
 	
@@ -215,10 +215,10 @@ private: // Entities
 	
 private: // Metrics
 	
-	float AvgAbsoluteDifferenceMetric = 0.0f;
-	float AvgPathLengthMetric = 0.0f;
-	float AvgInterPedDistanceMetric = 0.0f;
-	TArray<FVector2f> ReferencePreviousPositions;
+	double AvgAbsoluteDifferenceMetric = 0.0f;
+	double AvgPathLengthMetric = 0.0f;
+	double AvgInterPedDistanceMetric = 0.0f;
+	TArray<FVector2f> BaselinePreviousPositions;
 	TArray<FVector2f> TestPreviousPositions;
 	TArray<int> BaselineCollisions;
 	TArray<int> TestCollisions;
