@@ -94,6 +94,12 @@ enum class ESimulatorType
 	Fast
 };
 
+struct FTCPedVelocityCell
+{
+	FVector2f AvgVelocity = FVector2f::ZeroVector;
+	int Density = 0;
+};
+
 UCLASS()
 class TRAFFICCHAOS_API ASimulationActor : public AActor
 {
@@ -125,7 +131,8 @@ public:
 	void PlayEvaluationVisualisation();
 	
 	virtual void PostEditChangeProperty(struct FPropertyChangedEvent& PropertyChangedEvent) override;
-	
+	void InitialisePedVelocityField(const TArray<FTCEntity>& EntityArray);
+
 protected:
 	
 	void BeginPlay() override;
@@ -218,6 +225,9 @@ private: // Metrics
 	double AvgAbsoluteDifferenceMetric = 0.0f;
 	double AvgPathLengthMetric = 0.0f;
 	double AvgInterPedDistanceMetric = 0.0f;
+	float AvgBaselineVorticity = 0.0f;
+	float AvgTestVorticity = 0.0f;
+	FRpSpatialData<FTCPedVelocityCell> PedestrianVelocityField;
 	TArray<FVector2f> BaselinePreviousPositions;
 	TArray<FVector2f> TestPreviousPositions;
 	TArray<int> BaselineCollisions;

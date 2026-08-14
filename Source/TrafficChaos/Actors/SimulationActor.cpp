@@ -80,11 +80,14 @@ void ASimulationActor::Evaluate()
 	AvgAbsoluteDifferenceMetric = 0.0f;
 	AvgPathLengthMetric = 0.0f;
 	AvgInterPedDistanceMetric = 0.0f;
+	AvgBaselineVorticity = 0.0f;
+	AvgTestVorticity = 0.0f;
 	
 	BaselineCollisions.Init(0, Entities.Num());
 	TestCollisions.Init(0, Entities.Num());
 	BaselinePreviousPositions.Init(FVector2f::ZeroVector, Entities.Num());
 	TestPreviousPositions.Init(FVector2f::ZeroVector, Entities.Num());
+	PedestrianVelocityField.Initialize(Resolution, WorldSpan, {});
 	for (int Index = 0; Index < Entities.Num(); ++Index)
 	{
 		const FVector2f& Position = Entities[Index].Position;
@@ -109,7 +112,9 @@ void ASimulationActor::Evaluate()
 	
 	AvgAbsoluteDifferenceMetric /= NumFrames;
 	AvgInterPedDistanceMetric /= NumFrames;
-	AvgInterPedDistanceMetric /= NumFrames;
+	AvgPathLengthMetric /= NumFrames;
+	AvgBaselineVorticity /= NumFrames;
+	AvgTestVorticity /= NumFrames;
 	
 	if (bNormaliseMetrics)
 	{
@@ -120,6 +125,7 @@ void ASimulationActor::Evaluate()
 	
 	UE_LOG(LogTemp, Warning, TEXT("Abs Diff = %f, Path Length = %f, InterPed Dist = %f"), AvgAbsoluteDifferenceMetric, AvgPathLengthMetric, AvgInterPedDistanceMetric);
 	UE_LOG(LogTemp, Warning, TEXT("Number of collisions in baseline = %d, Number of collisions in test = %d"), Algo::Accumulate(BaselineCollisions, 0), Algo::Accumulate(TestCollisions, 0));
+	UE_LOG(LogTemp, Warning, TEXT("Baseline Vorticity = %f, Test Vorticity = %f"), AvgBaselineVorticity, AvgTestVorticity);
 }
 
 void ASimulationActor::MetricCompare(const TArray<FTCEntity>& Baseline, const TArray<FTCEntity>& Test)
@@ -192,6 +198,62 @@ void ASimulationActor::MetricCompare(const TArray<FTCEntity>& Baseline, const TA
 	AvgAbsoluteDifferenceMetric += AbsoluteDifferenceMetric / NumEntities;
 	AvgInterPedDistanceMetric += InterPedDistanceMetric / NumEntities;
 	AvgPathLengthMetric += PathLengthMetric / NumEntities;
+	
+	// Vorticity
+	{
+		const float CellSize = WorldSpan / static_cast<float>(Resolution);
+		float Vorticity = 0.0f;
+		
+		const auto CalculateVorticity = [this, CellSize, &Vorticity](const FTCPedVelocityCell* Cell, const FVector2f& Coords) -> void
+		{
+			if (Cell->Density == 0)
+			{
+				return;
+			}
+			
+			float DeltaVy = 0;
+			if (const FTCPedVelocityCell* EastCell = PedestrianVelocityField.GetDataAt(Coords, D_EAST))
+			{
+				if (EastCell->Density == 0)
+				{
+					return;
+				}
+				DeltaVy = EastCell->AvgVelocity.Y - Cell->AvgVelocity.Y;
+			}
+			else
+			{
+				return;
+			}
+			
+			float DeltaVx = 0;
+			if (const FTCPedVelocityCell* NorthCell = PedestrianVelocityField.GetDataAt(Coords, D_NORTH))
+			{
+				if (NorthCell->Density == 0)
+				{
+					return;
+				}
+				DeltaVx = NorthCell->AvgVelocity.X - Cell->AvgVelocity.X;
+			}
+			else
+			{
+				return;
+			}
+			
+			Vorticity += DeltaVy / CellSize - DeltaVx / CellSize;
+		};
+		
+		InitialisePedVelocityField(Baseline);
+		PedestrianVelocityField.ForEachCellPerform(CalculateVorticity);
+		Vorticity /= PedestrianVelocityField.GetNum();
+		AvgBaselineVorticity += Vorticity;
+		
+		Vorticity = 0.0f;
+		
+		InitialisePedVelocityField(Test);
+		PedestrianVelocityField.ForEachCellPerform(CalculateVorticity);
+		Vorticity /= PedestrianVelocityField.GetNum();
+		AvgTestVorticity += Vorticity;
+	}
 }
 
 void ASimulationActor::SimulateFast()
@@ -788,4 +850,28 @@ void ASimulationActor::PostEditChangeProperty(struct FPropertyChangedEvent& Prop
 	}
 	
 	Super::PostEditChangeProperty(PropertyChangedEvent);
+}
+
+void ASimulationActor::InitialisePedVelocityField(const TArray<FTCEntity>& EntityArray)
+{
+	const auto Reset = [](FTCPedVelocityCell* Cell, const FVector2f& Coords)
+	{
+		Cell->AvgVelocity = FVector2f::ZeroVector;
+		Cell->Density = 0;
+	};
+	
+	PedestrianVelocityField.ForEachCellPerform(Reset);
+	for (int Index = 0; Index < EntityArray.Num(); ++Index)
+	{
+		const FVector2f& EntityVelocity = EntityArray[Index].Velocity;
+		const FVector2f& EntityPosition = EntityArray[Index].Position;
+		const FVector2f& EntityGridIndices = PedestrianVelocityField.WorldToGridIndices(EntityPosition);
+		if (FTCPedVelocityCell* CurrentCell = PedestrianVelocityField.GetDataAt(EntityGridIndices))
+		{
+			const FVector2f& TotalVelocity = CurrentCell->AvgVelocity * CurrentCell->Density;
+			
+			CurrentCell->AvgVelocity = (TotalVelocity + EntityVelocity) / (CurrentCell->Density + 1);
+			CurrentCell->Density += 1;
+		}
+	}
 }
