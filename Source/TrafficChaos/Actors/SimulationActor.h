@@ -94,11 +94,41 @@ enum class ESimulatorType
 	Fast
 };
 
-struct FTCPedVelocityCell
+struct FTCPedDensityVelocityCell
 {
 	FVector2f AvgVelocity = FVector2f::ZeroVector;
 	int Density = 0;
 };
+
+struct FTCFrameVorticityMetric
+{
+	float BaselineVorticity = 0.0f;
+	float TestVorticity = 0.0f;
+	float Difference = 0.0f;
+	FTCFrameVorticityMetric& operator+=(const FTCFrameVorticityMetric& VorticityMetric)
+	{
+		BaselineVorticity += VorticityMetric.BaselineVorticity;
+		TestVorticity += VorticityMetric.TestVorticity;
+		Difference += VorticityMetric.Difference;
+		
+		return *this;
+	}
+
+	FString ToString() const
+	{
+		return FString::Printf(TEXT("Baseline Vorticity : %f, Test Vorticity : %f, Difference : %f"),
+			BaselineVorticity, TestVorticity, Difference);
+	}
+};
+
+struct FTCMetrics
+{
+	float TotalAbsoluteDifferenceMetric = 0.0f;
+	float TotalPathLengthMetric = 0.0f;
+	float TotalInterPedDistanceMetric = 0.0f;
+	FTCFrameVorticityMetric TotalVorticityMetric = {};
+};
+
 
 UCLASS()
 class TRAFFICCHAOS_API ASimulationActor : public AActor
@@ -126,12 +156,12 @@ public:
 	
 	UFUNCTION(CallInEditor, Category = "Evaluation Commands")
 	void Evaluate();
-	
+
 	UFUNCTION(CallInEditor, Category = "Evaluation Commands")
 	void PlayEvaluationVisualisation();
 	
 	virtual void PostEditChangeProperty(struct FPropertyChangedEvent& PropertyChangedEvent) override;
-	void InitialisePedVelocityField(const TArray<FTCEntity>& EntityArray);
+	void InitPedDensityVelocityField(const TArray<FTCEntity>& EntityArray);
 
 protected:
 	
@@ -146,7 +176,12 @@ private:
 	void DrawDebugBaseline();
 	void DrawDebugFast();
 	void MetricCompare(const TArray<FTCEntity>& Baseline, const TArray<FTCEntity>& Test);
-	
+	float CalcFrameAbsoluteDifferenceMetric(const TArray<FTCEntity>& Baseline, const TArray<FTCEntity>& Test) const;
+	float CalcFramePathLengthMetric(const TArray<FTCEntity>& Baseline, const TArray<FTCEntity>& Test);
+	float CalcFrameInterPedestrianDistanceMetric(const TArray<FTCEntity>& Baseline, const TArray<FTCEntity>& Test) const;
+	FTCFrameVorticityMetric CalcFrameVorticityMetric(const TArray<FTCEntity>& Baseline, const TArray<FTCEntity>& Test);
+	void ResetPedDensityVelocityField();
+
 private:
 	
 	UPROPERTY(EditAnywhere, Category = "PIE Settings")
@@ -222,12 +257,9 @@ private: // Entities
 	
 private: // Metrics
 	
-	double AvgAbsoluteDifferenceMetric = 0.0f;
-	double AvgPathLengthMetric = 0.0f;
-	double AvgInterPedDistanceMetric = 0.0f;
-	float AvgBaselineVorticity = 0.0f;
-	float AvgTestVorticity = 0.0f;
-	FRpSpatialData<FTCPedVelocityCell> PedestrianVelocityField;
+	FTCMetrics Metrics;
+	FRpSpatialData<FTCPedDensityVelocityCell> PedVelocityField;
+	FRpSpatialData<int> PedDensityField;
 	TArray<FVector2f> BaselinePreviousPositions;
 	TArray<FVector2f> TestPreviousPositions;
 	TArray<int> BaselineCollisions;

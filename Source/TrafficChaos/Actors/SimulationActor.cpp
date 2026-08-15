@@ -77,17 +77,14 @@ void ASimulationActor::Evaluate()
 	StopVisualisation();
 	InitialiseSimulation();
 	
-	AvgAbsoluteDifferenceMetric = 0.0f;
-	AvgPathLengthMetric = 0.0f;
-	AvgInterPedDistanceMetric = 0.0f;
-	AvgBaselineVorticity = 0.0f;
-	AvgTestVorticity = 0.0f;
-	
 	BaselineCollisions.Init(0, Entities.Num());
 	TestCollisions.Init(0, Entities.Num());
 	BaselinePreviousPositions.Init(FVector2f::ZeroVector, Entities.Num());
 	TestPreviousPositions.Init(FVector2f::ZeroVector, Entities.Num());
-	PedestrianVelocityField.Initialize(Resolution, WorldSpan, {});
+	PedVelocityField.Initialize(Resolution, WorldSpan, {});
+	const int DensityFieldTargetResolution = FMath::RoundToInt(WorldSpan / 100.0f);
+	PedDensityField.Initialize(DensityFieldTargetResolution, WorldSpan, {});
+	
 	for (int Index = 0; Index < Entities.Num(); ++Index)
 	{
 		const FVector2f& Position = Entities[Index].Position;
@@ -98,6 +95,8 @@ void ASimulationActor::Evaluate()
 	TArray<FTCEntity> BaselineEntities = Entities;
 	TArray<FTCEntity> FastSimEntities = Entities;
 	
+	Metrics = {};
+	
 	const int NumFrames = SimulationLength / SimulationTimeStep;
 	for (int Frame = 0; Frame < NumFrames; ++Frame)
 	{
@@ -107,70 +106,150 @@ void ASimulationActor::Evaluate()
 		FastSimulator->UpdateSimulation(FastSimEntities);
 		FastSimulator->MoveEntites(FastSimEntities, SimulationTimeStep);
 		
-		MetricCompare(BaselineEntities, FastSimEntities);
+		Metrics.TotalAbsoluteDifferenceMetric += CalcFrameAbsoluteDifferenceMetric(BaselineEntities, FastSimEntities);
+		Metrics.TotalPathLengthMetric += CalcFramePathLengthMetric(BaselineEntities, FastSimEntities);
+		Metrics.TotalInterPedDistanceMetric += CalcFrameInterPedestrianDistanceMetric(BaselineEntities, FastSimEntities);
+		Metrics.TotalVorticityMetric += CalcFrameVorticityMetric(BaselineEntities, FastSimEntities);
 	}
 	
-	AvgAbsoluteDifferenceMetric /= NumFrames;
-	AvgInterPedDistanceMetric /= NumFrames;
-	AvgPathLengthMetric /= NumFrames;
-	AvgBaselineVorticity /= NumFrames;
-	AvgTestVorticity /= NumFrames;
+	const int NumEntities = Entities.Num();
+	const int NumPairs = (NumEntities * (NumEntities - 1)) / 2;
+	Metrics.TotalAbsoluteDifferenceMetric = FMath::Abs(Metrics.TotalAbsoluteDifferenceMetric) / (NumFrames * NumEntities);
+	Metrics.TotalPathLengthMetric = Metrics.TotalPathLengthMetric / (NumFrames * NumEntities);
+	Metrics.TotalInterPedDistanceMetric = FMath::Abs(Metrics.TotalInterPedDistanceMetric) / (NumFrames * NumPairs);
+	Metrics.TotalVorticityMetric.Difference = FMath::Abs(Metrics.TotalVorticityMetric.Difference) / NumFrames;
+	Metrics.TotalVorticityMetric.BaselineVorticity = Metrics.TotalVorticityMetric.BaselineVorticity / NumFrames;
+	Metrics.TotalVorticityMetric.TestVorticity = Metrics.TotalVorticityMetric.TestVorticity / NumFrames;
 	
-	if (bNormaliseMetrics)
+	UE_LOG
+	(
+		LogTemp, Warning, TEXT("Abs Diff = %f, Path Len = %f, Ped Dist = %f, %s"), 
+		Metrics.TotalAbsoluteDifferenceMetric, 
+		Metrics.TotalPathLengthMetric,
+		Metrics.TotalInterPedDistanceMetric,
+		*Metrics.TotalVorticityMetric.ToString()
+	)
+}
+
+float ASimulationActor::CalcFrameAbsoluteDifferenceMetric(const TArray<FTCEntity>& Baseline, const TArray<FTCEntity>& Test) const
+{
+	float FrameAbsoluteDifferenceMetric = 0.0f;
+	const int NumEntities = Entities.Num();
+	for (int Index = 0; Index < NumEntities; ++Index)
 	{
-		AvgAbsoluteDifferenceMetric /= WorldSpan;
-		AvgInterPedDistanceMetric /= WorldSpan;
-		AvgPathLengthMetric /= WorldSpan;
+		FrameAbsoluteDifferenceMetric += FVector2f::Distance(Baseline[Index].Position, Test[Index].Position);
 	}
 	
-	UE_LOG(LogTemp, Warning, TEXT("Abs Diff = %f, Path Length = %f, InterPed Dist = %f"), AvgAbsoluteDifferenceMetric, AvgPathLengthMetric, AvgInterPedDistanceMetric);
-	UE_LOG(LogTemp, Warning, TEXT("Number of collisions in baseline = %d, Number of collisions in test = %d"), Algo::Accumulate(BaselineCollisions, 0), Algo::Accumulate(TestCollisions, 0));
-	UE_LOG(LogTemp, Warning, TEXT("Baseline Vorticity = %f, Test Vorticity = %f"), AvgBaselineVorticity, AvgTestVorticity);
+	return FrameAbsoluteDifferenceMetric;
+}
+
+float ASimulationActor::CalcFramePathLengthMetric(const TArray<FTCEntity>& Baseline, const TArray<FTCEntity>& Test)
+{
+	double FramePathLengthMetric = 0.0f;
+	const int NumEntities = Entities.Num();
+	for (int Index = 0; Index < NumEntities; ++Index)
+	{
+		const FVector2f& BaselineCurrentPosition = Baseline[Index].Position;
+		const FVector2f& TestCurrentPosition = Test[Index].Position;
+		const FVector2f& BaselinePreviousPosition = BaselinePreviousPositions[Index];
+		const FVector2f& TestPreviousPosition = TestPreviousPositions[Index];
+		
+		const float BaselinePathLength = FVector2f::Distance(BaselinePreviousPosition, BaselineCurrentPosition);
+		const float TestPathLength = FVector2f::Distance(TestPreviousPosition, TestCurrentPosition);
+		BaselinePreviousPositions[Index] = BaselineCurrentPosition;
+		TestPreviousPositions[Index] = TestCurrentPosition;
+		
+		FramePathLengthMetric += BaselinePathLength - TestPathLength;
+	}
+	
+	return FramePathLengthMetric;
+}
+
+float ASimulationActor::CalcFrameInterPedestrianDistanceMetric(const TArray<FTCEntity>& Baseline, const TArray<FTCEntity>& Test) const
+{
+	const int NumEntities = Entities.Num();
+	const auto CalculateInterPedDistanceSum = [NumEntities](const TArray<FTCEntity>& TargetEntities) -> float
+	{
+		float InterPedDistance = 0.0f;
+		for (int Index = 0; Index < NumEntities; ++Index)
+		{
+			for (int OtherIndex = Index + 1; OtherIndex < NumEntities; ++OtherIndex)
+			{
+				InterPedDistance += FVector2f::Distance(TargetEntities[OtherIndex].Position, TargetEntities[Index].Position);
+			}
+		}
+		
+		return InterPedDistance;
+	};
+	
+	const double FrameInterPedDistanceMetric = CalculateInterPedDistanceSum(Baseline) - CalculateInterPedDistanceSum(Test);
+	return FrameInterPedDistanceMetric;
+}
+
+FTCFrameVorticityMetric ASimulationActor::CalcFrameVorticityMetric(const TArray<FTCEntity>& Baseline, const TArray<FTCEntity>& Test)
+{
+	const float CellSize = WorldSpan / static_cast<float>(Resolution);
+	
+	float Vorticity = 0.0f;
+	const auto CalculateVorticity = [this, CellSize, &Vorticity](const FTCPedDensityVelocityCell* Cell, const FVector2f& Coords) -> void
+	{
+		if (Cell->Density == 0)
+		{
+			return;
+		}
+			
+		float DeltaVy;
+		if (const FTCPedDensityVelocityCell* EastCell = PedVelocityField.GetDataAt(Coords, D_EAST))
+		{
+			if (EastCell->Density == 0)
+			{
+				return;
+			}
+			DeltaVy = EastCell->AvgVelocity.Y - Cell->AvgVelocity.Y;
+		}
+		else
+		{
+			return;
+		}
+			
+		float DeltaVx;
+		if (const FTCPedDensityVelocityCell* NorthCell = PedVelocityField.GetDataAt(Coords, D_SOUTH))
+		{
+			if (NorthCell->Density == 0)
+			{
+				return;
+			}
+			DeltaVx = NorthCell->AvgVelocity.X - Cell->AvgVelocity.X;
+		}
+		else
+		{
+			return;
+		}
+		
+		Vorticity += DeltaVy / CellSize - DeltaVx / CellSize;
+	};
+		
+	InitPedDensityVelocityField(Baseline);
+	PedVelocityField.ForEachCellPerform(CalculateVorticity);
+	const float BaselineVorticity = Vorticity;
+	
+	Vorticity = 0.0f;
+	InitPedDensityVelocityField(Test);
+	PedVelocityField.ForEachCellPerform(CalculateVorticity);
+	const float TestVorticity = Vorticity;
+	
+	const FTCFrameVorticityMetric FrameVorticityMetric {BaselineVorticity, TestVorticity, BaselineVorticity - TestVorticity};
+	return FrameVorticityMetric;
 }
 
 void ASimulationActor::MetricCompare(const TArray<FTCEntity>& Baseline, const TArray<FTCEntity>& Test)
 {
 	const int NumEntities = Entities.Num();
 	
-	double AbsoluteDifferenceMetric = 0.0f;
-	double PathLengthMetric = 0.0f;
-	double InterPedDistanceMetric = 0.0f;
-	
 	for (int Index = 0; Index < NumEntities; ++Index)
 	{
 		const FVector2f& BaselinePosition = Baseline[Index].Position;
 		const FVector2f& TestPosition = Test[Index].Position;
-		
-		// Absolute Difference Metric
-		AbsoluteDifferenceMetric += FVector2f::Distance(BaselinePosition, TestPosition);
-		
-		// Path Length Metric
-		{
-			const FVector2f& BaselinePreviousPosition = BaselinePreviousPositions[Index];
-			const FVector2f& TestPreviousPosition = TestPreviousPositions[Index];
-			PathLengthMetric += FVector2f::Distance(BaselinePreviousPosition, BaselinePosition) - FVector2f::Distance(TestPreviousPosition, TestPosition);
-			BaselinePreviousPositions[Index] = BaselinePosition;
-			TestPreviousPositions[Index] = TestPosition;
-		}
-		
-		// Inter-pedestrian Distance Metric
-		{
-			float BaselineInterPedDistance = 0.0f;
-			float TestInterPedDistance = 0.0f;
-		
-			for (int OtherIndex = Index + 1; OtherIndex < NumEntities; ++OtherIndex)
-			{
-				const FVector2f& BaselineOtherPosition = Baseline[OtherIndex].Position;
-				const FVector2f& TestOtherPosition = Test[OtherIndex].Position;
-				BaselineInterPedDistance += FVector2f::Distance(BaselineOtherPosition, BaselinePosition);
-				TestInterPedDistance += FVector2f::Distance(TestOtherPosition, TestPosition);
-			}
-		
-			BaselineInterPedDistance /= (NumEntities - 1);
-			TestInterPedDistance /= (NumEntities - 1);
-		
-			InterPedDistanceMetric += FMath::Abs(BaselineInterPedDistance - TestInterPedDistance);
-		}
 		
 		// Collisions metric
 		{
@@ -195,65 +274,28 @@ void ASimulationActor::MetricCompare(const TArray<FTCEntity>& Baseline, const TA
 		}
 	}
 	
-	AvgAbsoluteDifferenceMetric += AbsoluteDifferenceMetric / NumEntities;
-	AvgInterPedDistanceMetric += InterPedDistanceMetric / NumEntities;
-	AvgPathLengthMetric += PathLengthMetric / NumEntities;
-	
-	// Vorticity
-	{
-		const float CellSize = WorldSpan / static_cast<float>(Resolution);
-		float Vorticity = 0.0f;
-		
-		const auto CalculateVorticity = [this, CellSize, &Vorticity](const FTCPedVelocityCell* Cell, const FVector2f& Coords) -> void
-		{
-			if (Cell->Density == 0)
-			{
-				return;
-			}
-			
-			float DeltaVy = 0;
-			if (const FTCPedVelocityCell* EastCell = PedestrianVelocityField.GetDataAt(Coords, D_EAST))
-			{
-				if (EastCell->Density == 0)
-				{
-					return;
-				}
-				DeltaVy = EastCell->AvgVelocity.Y - Cell->AvgVelocity.Y;
-			}
-			else
-			{
-				return;
-			}
-			
-			float DeltaVx = 0;
-			if (const FTCPedVelocityCell* NorthCell = PedestrianVelocityField.GetDataAt(Coords, D_NORTH))
-			{
-				if (NorthCell->Density == 0)
-				{
-					return;
-				}
-				DeltaVx = NorthCell->AvgVelocity.X - Cell->AvgVelocity.X;
-			}
-			else
-			{
-				return;
-			}
-			
-			Vorticity += DeltaVy / CellSize - DeltaVx / CellSize;
-		};
-		
-		InitialisePedVelocityField(Baseline);
-		PedestrianVelocityField.ForEachCellPerform(CalculateVorticity);
-		Vorticity /= PedestrianVelocityField.GetNum();
-		AvgBaselineVorticity += Vorticity;
-		
-		Vorticity = 0.0f;
-		
-		InitialisePedVelocityField(Test);
-		PedestrianVelocityField.ForEachCellPerform(CalculateVorticity);
-		Vorticity /= PedestrianVelocityField.GetNum();
-		AvgTestVorticity += Vorticity;
-	}
+	// Average Density
+	//{
+	//	int NumOccupiedCells = 0;
+	//	const auto GetAvgDensity = [&NumOccupiedCells](const int* CellDensity, const FVector2f& Coords) -> void
+	//	{
+	//		if (*CellDensity == 0)
+	//		{
+	//			return;
+	//		}
+	//		
+	//		++NumOccupiedCells;
+	//	};
+	//	
+	//	InitPedDensityVelocityField(Baseline);
+	//	PedestrianDensityField.ForEachCellPerform(GetAvgDensity);
+	//	AvgBaselineDensity += (Entities.Num() / static_cast<float>(NumOccupiedCells));
+	//	
+	//	InitPedDensityVelocityField(Test);
+	//	NumOccupiedCells = 0;
+	//	PedestrianDensityField.ForEachCellPerform(GetAvgDensity);
+	//	AvgTestDensity += (Entities.Num() / static_cast<float>(NumOccupiedCells));
+	//}
 }
 
 void ASimulationActor::SimulateFast()
@@ -537,7 +579,7 @@ void ASimulationActor::DrawDebugBaseline()
 				const FVector2f WorldCoords = Field.GridToWorld(Coords);
 				const FVector BoxMin = {WorldCoords.X, WorldCoords.Y, 0};
 				const FVector BoxMax = {WorldCoords.X + DebugBoxExtent, WorldCoords.Y + DebugBoxExtent, 100};
-				const FColor BoxColor{0,0,255,128};
+				constexpr FColor BoxColor{0,0,255,128};
 				DrawDebugSolidBox(World, FBox(BoxMin, BoxMax), BoxColor);
 			}
 		};
@@ -552,7 +594,7 @@ void ASimulationActor::DrawDebugBaseline()
 			const FVector2f WorldCoords = Field.GridToWorld(Coords);
 			const FVector BoxMin = {WorldCoords.X, WorldCoords.Y, 0};
 			const FVector BoxMax = {WorldCoords.X + DebugBoxExtent, WorldCoords.Y + DebugBoxExtent, 100};
-			const FLinearColor BoxColor(1, 1, 1, 0.1);
+			constexpr FLinearColor BoxColor(1, 1, 1, 0.1);
 			DrawDebugSolidBox(World, FBox(BoxMin, BoxMax), BoxColor.ToFColor(false));
 		};
 		Field.ForEachCellPerform(DrawBox);
@@ -735,7 +777,7 @@ void ASimulationActor::DrawDebugFast()
 				const FVector2f WorldCoords = Field.GridToWorld(Coords);
 				const FVector BoxMin = {WorldCoords.X, WorldCoords.Y, 0};
 				const FVector BoxMax = {WorldCoords.X + DebugBoxExtent, WorldCoords.Y + DebugBoxExtent, 100};
-				const FColor BoxColor{0,0,255,128};
+				constexpr FColor BoxColor{0,0,255,128};
 				DrawDebugSolidBox(World, FBox(BoxMin, BoxMax), BoxColor);
 			}
 		};
@@ -744,14 +786,18 @@ void ASimulationActor::DrawDebugFast()
 	
 	if (DebugSettings.bDrawGrid)
 	{
-		const auto DrawBox = [World, Field](const FTCFastCell* Cell, const FVector2f& Coords)
+		const auto DrawBox = [this, World, Field](const FTCFastCell* Cell, const FVector2f& Coords)
 		{
 			const float DebugBoxExtent = Field.GetCellSize();
 			const FVector2f WorldCoords = Field.GridToWorld(Coords);
 			const FVector BoxMin = {WorldCoords.X, WorldCoords.Y, 0};
 			const FVector BoxMax = {WorldCoords.X + DebugBoxExtent, WorldCoords.Y + DebugBoxExtent, 100};
-			const FLinearColor BoxColor(1, 1, 1, 0.1);
+			constexpr FLinearColor BoxColor(1, 1, 1, 0.1);
 			DrawDebugSolidBox(World, FBox(BoxMin, BoxMax), BoxColor.ToFColor(false));
+			
+			const FString String = FString::Printf(TEXT("%.0f, %.0f"), Coords.X, Coords.Y);
+			const FVector StringLocation = {WorldCoords.X + DebugBoxExtent / 2, WorldCoords.Y + DebugBoxExtent / 2, 0.0f}; 
+			DrawDebugString(World, StringLocation , String, this, FColor::White, SimulationTimeStep);
 		};
 		Field.ForEachCellPerform(DrawBox);
 	}
@@ -852,26 +898,29 @@ void ASimulationActor::PostEditChangeProperty(struct FPropertyChangedEvent& Prop
 	Super::PostEditChangeProperty(PropertyChangedEvent);
 }
 
-void ASimulationActor::InitialisePedVelocityField(const TArray<FTCEntity>& EntityArray)
+void ASimulationActor::InitPedDensityVelocityField(const TArray<FTCEntity>& EntityArray)
 {
-	const auto Reset = [](FTCPedVelocityCell* Cell, const FVector2f& Coords)
+	ResetPedDensityVelocityField();
+	for (int Index = 0; Index < EntityArray.Num(); ++Index)
+	{
+		const FVector2f& EntityVelocity = EntityArray[Index].Velocity;
+		const FVector2f& GridIndices = PedVelocityField.WorldToGridIndices(EntityArray[Index].Position);
+		if (FTCPedDensityVelocityCell* Cell = PedVelocityField.GetDataAt(GridIndices))
+		{
+			const FVector2f& TotalVelocity = Cell->AvgVelocity * Cell->Density;
+			const FVector2f& NewTotalVelocity = TotalVelocity + EntityVelocity;
+			Cell->Density += 1;
+			Cell->AvgVelocity = NewTotalVelocity / Cell->Density;
+		}
+	}
+}
+
+void ASimulationActor::ResetPedDensityVelocityField()
+{
+	const auto Reset = [](FTCPedDensityVelocityCell* Cell, const FVector2f& Coords)
 	{
 		Cell->AvgVelocity = FVector2f::ZeroVector;
 		Cell->Density = 0;
 	};
-	
-	PedestrianVelocityField.ForEachCellPerform(Reset);
-	for (int Index = 0; Index < EntityArray.Num(); ++Index)
-	{
-		const FVector2f& EntityVelocity = EntityArray[Index].Velocity;
-		const FVector2f& EntityPosition = EntityArray[Index].Position;
-		const FVector2f& EntityGridIndices = PedestrianVelocityField.WorldToGridIndices(EntityPosition);
-		if (FTCPedVelocityCell* CurrentCell = PedestrianVelocityField.GetDataAt(EntityGridIndices))
-		{
-			const FVector2f& TotalVelocity = CurrentCell->AvgVelocity * CurrentCell->Density;
-			
-			CurrentCell->AvgVelocity = (TotalVelocity + EntityVelocity) / (CurrentCell->Density + 1);
-			CurrentCell->Density += 1;
-		}
-	}
+	PedVelocityField.ForEachCellPerform(Reset);
 }
