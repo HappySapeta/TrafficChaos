@@ -94,9 +94,14 @@ enum class ESimulatorType
 	Fast
 };
 
-struct FTCPedDensityVelocityCell
+struct FTCPedVelocityCell
 {
 	FVector2f AvgVelocity = FVector2f::ZeroVector;
+	int Density = 0;
+};
+
+struct FTCPedDensityCell
+{
 	int Density = 0;
 };
 
@@ -105,6 +110,7 @@ struct FTCFrameVorticityMetric
 	float BaselineVorticity = 0.0f;
 	float TestVorticity = 0.0f;
 	float Difference = 0.0f;
+	
 	FTCFrameVorticityMetric& operator+=(const FTCFrameVorticityMetric& VorticityMetric)
 	{
 		BaselineVorticity += VorticityMetric.BaselineVorticity;
@@ -121,12 +127,53 @@ struct FTCFrameVorticityMetric
 	}
 };
 
+struct FTCCollisionsMetric
+{
+	float BaselineCollisions = 0;
+	float TestCollisions = 0;
+	
+	FTCCollisionsMetric& operator+=(const FTCCollisionsMetric& CollisionsMetric)
+	{
+		BaselineCollisions += CollisionsMetric.BaselineCollisions;
+		TestCollisions += CollisionsMetric.TestCollisions;
+		
+		return *this;
+	}
+	
+	FString ToString() const
+	{
+		return FString::Printf(TEXT("Baseline Collision Pairs : %f, Test Collision Pairs : %f"),
+			BaselineCollisions, TestCollisions);
+	}
+};
+
+struct FTCDensityMetric
+{
+	float BaselineAvgDensity = 0;
+	float TestAvgDensity = 0;
+	
+	FTCDensityMetric& operator+=(const FTCDensityMetric& DensityMetric)
+	{
+		BaselineAvgDensity += DensityMetric.BaselineAvgDensity;
+		TestAvgDensity += DensityMetric.TestAvgDensity;
+		
+		return *this;
+	}
+	
+	FString ToString() const
+	{
+		return FString::Printf(TEXT("Baseline Density : %f, Test Density : %f"), BaselineAvgDensity, TestAvgDensity);
+	}
+};
+
 struct FTCMetrics
 {
 	float TotalAbsoluteDifferenceMetric = 0.0f;
 	float TotalPathLengthMetric = 0.0f;
 	float TotalInterPedDistanceMetric = 0.0f;
 	FTCFrameVorticityMetric TotalVorticityMetric = {};
+	FTCCollisionsMetric TotalCollisionsMetric = {};
+	FTCDensityMetric TotalDensityMetric = {};
 };
 
 
@@ -161,7 +208,6 @@ public:
 	void PlayEvaluationVisualisation();
 	
 	virtual void PostEditChangeProperty(struct FPropertyChangedEvent& PropertyChangedEvent) override;
-	void InitPedDensityVelocityField(const TArray<FTCEntity>& EntityArray);
 
 protected:
 	
@@ -175,12 +221,16 @@ private:
 	void InitialiseEntityStartLocations();
 	void DrawDebugBaseline();
 	void DrawDebugFast();
-	void MetricCompare(const TArray<FTCEntity>& Baseline, const TArray<FTCEntity>& Test);
 	float CalcFrameAbsoluteDifferenceMetric(const TArray<FTCEntity>& Baseline, const TArray<FTCEntity>& Test) const;
 	float CalcFramePathLengthMetric(const TArray<FTCEntity>& Baseline, const TArray<FTCEntity>& Test);
 	float CalcFrameInterPedestrianDistanceMetric(const TArray<FTCEntity>& Baseline, const TArray<FTCEntity>& Test) const;
+	FTCDensityMetric CalcFrameAverageDensityMetric(const TArray<FTCEntity>& Baseline, const TArray<FTCEntity>& Test);
 	FTCFrameVorticityMetric CalcFrameVorticityMetric(const TArray<FTCEntity>& Baseline, const TArray<FTCEntity>& Test);
+	FTCCollisionsMetric CalcFrameCollisionsMetric(const TArray<FTCEntity>& Baseline, const TArray<FTCEntity>& Test) const;
+	void InitPedVelocityField(const TArray<FTCEntity>& EntityArray);
 	void ResetPedDensityVelocityField();
+	void InitPedDensityField(const TArray<FTCEntity>& EntityArray);
+	void ResetPedDensityField();
 
 private:
 	
@@ -258,10 +308,8 @@ private: // Entities
 private: // Metrics
 	
 	FTCMetrics Metrics;
-	FRpSpatialData<FTCPedDensityVelocityCell> PedVelocityField;
-	FRpSpatialData<int> PedDensityField;
+	FRpSpatialData<FTCPedVelocityCell> PedVelocityField;
+	FRpSpatialData<FTCPedDensityCell> PedDensityField;
 	TArray<FVector2f> BaselinePreviousPositions;
 	TArray<FVector2f> TestPreviousPositions;
-	TArray<int> BaselineCollisions;
-	TArray<int> TestCollisions;
 };
