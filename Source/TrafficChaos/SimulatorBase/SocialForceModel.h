@@ -37,6 +37,9 @@ struct FTCSocialForceParameters
 	float MaxTurnAngle = 90.0f;
 	
 	UPROPERTY(EditAnywhere)
+	float PedestrianHalfSize = 25.0f;
+	
+	UPROPERTY(EditAnywhere)
 	float HalfFOV = 100.0f;
 };
 
@@ -44,56 +47,9 @@ class FTCSocialForces
 {
 public:
 
-	static FVector2f GetDrivingForce
-	(
-		const FVector2f& CurrentVelocity, 
-		const FVector2f& DesiredDirection,
-		const FTCSocialForceParameters& Parameters = {}
-	)
-	{
-		return (Parameters.DesiredSpeed * DesiredDirection - CurrentVelocity) / Parameters.RelaxationTime; 
-	}
-	
-	static FVector2f GetDrivingForceForVelocity
-	(
-		const FVector2f& CurrentVelocity, 
-		const FVector2f& DesiredVelocity,
-		const FTCSocialForceParameters& Parameters = {}
-	)
-	{
-		return (DesiredVelocity - CurrentVelocity) / Parameters.RelaxationTime; 
-	}
-
-	static FVector2f GetAvoidanceForce
-	(
-		const FVector2f& CurrentPosition, 
-		const FVector2f& OtherPosition,
-		const FVector2f& OtherVelocity, 
-		const float DeltaTime,
-		const FTCSocialForceParameters& Parameters = {}
-	)
-	{
-		if (FVector2f::Distance(CurrentPosition, OtherPosition) > Parameters.AvoidanceRadius)
-		{
-			return FVector2f::ZeroVector;
-		}
-		
-		const auto PotentialFunction = [Parameters](const float X) -> float
-		{
-			return FMath::Exp(-X / Parameters.AvoidanceRadius);
-		};
-		
-		const auto GetSemiMinorAxis = [DeltaTime, OtherVelocity](const FVector2f& VecToOther) -> float
-		{
-			const float OrderTerm = OtherVelocity.Length() * DeltaTime;
-			const float SquareRootTerm = VecToOther.Length() + (VecToOther - OrderTerm * OtherVelocity.GetSafeNormal()).Length();
-			return 0.5f * FMath::Sqrt(FMath::Max(FMath::Square(SquareRootTerm) - FMath::Square(OrderTerm)));
-		};
-		
-		const FVector2f VecToOther = OtherPosition - CurrentPosition;
-		
-		const float SemiMinorAxis = GetSemiMinorAxis(VecToOther);
-		const float Potential = PotentialFunction(SemiMinorAxis);
-		return -VecToOther.GetSafeNormal() * Potential * Parameters.AvoidanceStrength;
-	}
+	static FVector2f GetDrivingForce(const FVector2f& CurrentVelocity, const FVector2f& DesiredDirection, const FTCSocialForceParameters& Parameters = {});
+	static FVector2f GetDrivingForceForVelocity(const FVector2f& CurrentVelocity, const FVector2f& DesiredVelocity, const FTCSocialForceParameters& Parameters = {});
+	static FVector2f GetAvoidanceForce(const FVector2f& CurrentPosition, const FVector2f& OtherPosition, const FVector2f& OtherVelocity, const float DeltaTime, const FTCSocialForceParameters& Parameters = {});
+	static float PotentialFunction(float X, const float AvoidanceRadius);
+	static float GetSemiMinorAxis(const FVector2f& Vec, const FVector2f& OtherVelocity, float DeltaTime);
 };
