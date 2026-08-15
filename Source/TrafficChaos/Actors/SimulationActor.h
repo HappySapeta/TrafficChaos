@@ -166,14 +166,61 @@ struct FTCDensityMetric
 	}
 };
 
+struct FTCSpeedMetric
+{
+	float BaselineAvgSpeed = 0.0f;
+	float TestAvgSpeed = 0.0f;
+	
+	FTCSpeedMetric& operator+=(const FTCSpeedMetric& SpeedMetric)
+	{
+		BaselineAvgSpeed += SpeedMetric.BaselineAvgSpeed;
+		TestAvgSpeed += SpeedMetric.TestAvgSpeed;
+		
+		return *this;
+	}
+	
+	FString ToString() const
+	{
+		return FString::Printf(TEXT("Baseline Speed : %f, Test Speed : %f"), BaselineAvgSpeed, TestAvgSpeed);
+	}
+};
+
+struct FTCPathLengthMetric
+{
+	float BaselinePathLength = 0.0f;
+	float TestPathLength = 0.0f;
+	float Difference = 0.0f;
+	
+	FTCPathLengthMetric& operator+=(const FTCPathLengthMetric& PathMetric)
+	{
+		BaselinePathLength += PathMetric.BaselinePathLength;
+		TestPathLength += PathMetric.TestPathLength;
+		Difference += PathMetric.Difference;
+		
+		return *this;
+	}
+	
+	FString ToString() const
+	{
+		return FString::Printf
+		(
+			TEXT("Baseline Path : %f, Test Path : %f, Difference : %f"), 
+			BaselinePathLength, 
+			TestPathLength,
+			Difference
+		);
+	}
+};
+
 struct FTCMetrics
 {
 	float TotalAbsoluteDifferenceMetric = 0.0f;
-	float TotalPathLengthMetric = 0.0f;
 	float TotalInterPedDistanceMetric = 0.0f;
+	FTCPathLengthMetric TotalPathLengthMetric = {};
 	FTCFrameVorticityMetric TotalVorticityMetric = {};
 	FTCCollisionsMetric TotalCollisionsMetric = {};
 	FTCDensityMetric TotalDensityMetric = {};
+	FTCSpeedMetric TotalSpeedMetric = {};
 };
 
 
@@ -216,17 +263,19 @@ protected:
 private:
 	
 	void InitialiseSimulation();
+	void NormaliseMetrics(int NumFrames);
 	void StartSimulator();
 	void Simulate(float DeltaSeconds);
 	void InitialiseEntityStartLocations();
 	void DrawDebugBaseline();
 	void DrawDebugFast();
 	float CalcFrameAbsoluteDifferenceMetric(const TArray<FTCEntity>& Baseline, const TArray<FTCEntity>& Test) const;
-	float CalcFramePathLengthMetric(const TArray<FTCEntity>& Baseline, const TArray<FTCEntity>& Test);
 	float CalcFrameInterPedestrianDistanceMetric(const TArray<FTCEntity>& Baseline, const TArray<FTCEntity>& Test) const;
+	FTCPathLengthMetric CalcFramePathLengthMetric(const TArray<FTCEntity>& Baseline, const TArray<FTCEntity>& Test);
 	FTCDensityMetric CalcFrameAverageDensityMetric(const TArray<FTCEntity>& Baseline, const TArray<FTCEntity>& Test);
 	FTCFrameVorticityMetric CalcFrameVorticityMetric(const TArray<FTCEntity>& Baseline, const TArray<FTCEntity>& Test);
 	FTCCollisionsMetric CalcFrameCollisionsMetric(const TArray<FTCEntity>& Baseline, const TArray<FTCEntity>& Test) const;
+	FTCSpeedMetric CalcFrameAverageSpeedMetric(const TArray<FTCEntity>& Baseline, const TArray<FTCEntity>& Test);
 	void InitPedVelocityField(const TArray<FTCEntity>& EntityArray);
 	void ResetPedDensityVelocityField();
 	void InitPedDensityField(const TArray<FTCEntity>& EntityArray);
@@ -312,4 +361,5 @@ private: // Metrics
 	FRpSpatialData<FTCPedDensityCell> PedDensityField;
 	TArray<FVector2f> BaselinePreviousPositions;
 	TArray<FVector2f> TestPreviousPositions;
+	TArray<float> Speeds;
 };

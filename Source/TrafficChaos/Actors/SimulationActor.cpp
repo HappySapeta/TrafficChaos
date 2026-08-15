@@ -74,6 +74,40 @@ void ASimulationActor::InitialiseSimulation()
 	InitialiseEntityStartLocations();
 }
 
+void ASimulationActor::NormaliseMetrics(const int NumFrames)
+{
+	const int NumEntities = Entities.Num();
+	const int NumPairs = (NumEntities * (NumEntities - 1)) / 2;
+	{
+		Metrics.TotalAbsoluteDifferenceMetric = FMath::Abs(Metrics.TotalAbsoluteDifferenceMetric) / (NumFrames * NumEntities);
+	}
+	{
+		Metrics.TotalPathLengthMetric.BaselinePathLength /= NumEntities;
+		Metrics.TotalPathLengthMetric.TestPathLength /= NumEntities;
+		Metrics.TotalPathLengthMetric.Difference /= NumEntities;
+	}
+	{
+		Metrics.TotalInterPedDistanceMetric = FMath::Abs(Metrics.TotalInterPedDistanceMetric) / (NumFrames * NumPairs);
+	}
+	{
+		Metrics.TotalVorticityMetric.Difference = FMath::Abs(Metrics.TotalVorticityMetric.Difference) / NumFrames;
+		Metrics.TotalVorticityMetric.BaselineVorticity = Metrics.TotalVorticityMetric.BaselineVorticity / NumFrames;
+		Metrics.TotalVorticityMetric.TestVorticity = Metrics.TotalVorticityMetric.TestVorticity / NumFrames;
+	}
+	{
+		//Metrics.TotalCollisionsMetric.BaselineCollisions /= NumFrames;
+		//Metrics.TotalCollisionsMetric.TestCollisions /= NumFrames;
+	}
+	{
+		Metrics.TotalDensityMetric.BaselineAvgDensity /= NumFrames;
+		Metrics.TotalDensityMetric.TestAvgDensity /= NumFrames;
+	}
+	{
+		Metrics.TotalSpeedMetric.BaselineAvgSpeed /= NumFrames;
+		Metrics.TotalSpeedMetric.TestAvgSpeed /= NumFrames;
+	}
+}
+
 void ASimulationActor::Evaluate()
 {
 	StopVisualisation();
@@ -85,6 +119,7 @@ void ASimulationActor::Evaluate()
 	PedVelocityField.Initialize(Resolution, WorldSpan, {});
 	const int DensityFieldTargetResolution = FMath::RoundToInt(WorldSpan / 100.0f);
 	PedDensityField.Initialize(DensityFieldTargetResolution, WorldSpan, {});
+	Speeds.Init(0, Entities.Num());
 	
 	for (int Index = 0; Index < Entities.Num(); ++Index)
 	{
@@ -113,30 +148,21 @@ void ASimulationActor::Evaluate()
 		Metrics.TotalVorticityMetric += CalcFrameVorticityMetric(BaselineEntities, FastSimEntities);
 		Metrics.TotalCollisionsMetric += CalcFrameCollisionsMetric(BaselineEntities, FastSimEntities);
 		Metrics.TotalDensityMetric += CalcFrameAverageDensityMetric(BaselineEntities, FastSimEntities);
+		Metrics.TotalSpeedMetric += CalcFrameAverageSpeedMetric(BaselineEntities, FastSimEntities);
 	}
 	
-	const int NumEntities = Entities.Num();
-	const int NumPairs = (NumEntities * (NumEntities - 1)) / 2;
-	Metrics.TotalAbsoluteDifferenceMetric = FMath::Abs(Metrics.TotalAbsoluteDifferenceMetric) / (NumFrames * NumEntities);
-	Metrics.TotalPathLengthMetric = Metrics.TotalPathLengthMetric / (NumFrames * NumEntities);
-	Metrics.TotalInterPedDistanceMetric = FMath::Abs(Metrics.TotalInterPedDistanceMetric) / (NumFrames * NumPairs);
-	Metrics.TotalVorticityMetric.Difference = FMath::Abs(Metrics.TotalVorticityMetric.Difference) / NumFrames;
-	Metrics.TotalVorticityMetric.BaselineVorticity = Metrics.TotalVorticityMetric.BaselineVorticity / NumFrames;
-	Metrics.TotalVorticityMetric.TestVorticity = Metrics.TotalVorticityMetric.TestVorticity / NumFrames;
-	Metrics.TotalCollisionsMetric.BaselineCollisions /= NumFrames;
-	Metrics.TotalCollisionsMetric.TestCollisions /= NumFrames;
-	Metrics.TotalDensityMetric.BaselineAvgDensity /= NumFrames;
-	Metrics.TotalDensityMetric.TestAvgDensity /= NumFrames;
+	NormaliseMetrics(NumFrames);
 	
 	UE_LOG
 	(
-		LogTemp, Warning, TEXT("Abs Diff = %f, Path Len = %f, Ped Dist = %f, %s, %s, %s"), 
+		LogTemp, Warning, TEXT("Abs Diff = %f, Ped Dist = %f, %s, %s, %s, %s, %s"), 
 		Metrics.TotalAbsoluteDifferenceMetric, 
-		Metrics.TotalPathLengthMetric,
 		Metrics.TotalInterPedDistanceMetric,
+		*Metrics.TotalPathLengthMetric.ToString(),
 		*Metrics.TotalVorticityMetric.ToString(),
 		*Metrics.TotalCollisionsMetric.ToString(),
-		*Metrics.TotalDensityMetric.ToString()
+		*Metrics.TotalDensityMetric.ToString(),
+		*Metrics.TotalSpeedMetric.ToString()
 	)
 }
 
@@ -152,9 +178,11 @@ float ASimulationActor::CalcFrameAbsoluteDifferenceMetric(const TArray<FTCEntity
 	return FrameAbsoluteDifferenceMetric;
 }
 
-float ASimulationActor::CalcFramePathLengthMetric(const TArray<FTCEntity>& Baseline, const TArray<FTCEntity>& Test)
+FTCPathLengthMetric ASimulationActor::CalcFramePathLengthMetric(const TArray<FTCEntity>& Baseline, const TArray<FTCEntity>& Test)
 {
-	double FramePathLengthMetric = 0.0f;
+	float Difference = 0.0f;
+	float FrameBaselinePathLength = 0.0f;
+	float FrameTestPathLength = 0.0f;
 	const int NumEntities = Entities.Num();
 	for (int Index = 0; Index < NumEntities; ++Index)
 	{
@@ -168,10 +196,17 @@ float ASimulationActor::CalcFramePathLengthMetric(const TArray<FTCEntity>& Basel
 		BaselinePreviousPositions[Index] = BaselineCurrentPosition;
 		TestPreviousPositions[Index] = TestCurrentPosition;
 		
-		FramePathLengthMetric += BaselinePathLength - TestPathLength;
+		FrameBaselinePathLength += BaselinePathLength;
+		FrameTestPathLength += TestPathLength;
+		Difference += BaselinePathLength - TestPathLength;
 	}
 	
-	return FramePathLengthMetric;
+	return 
+	{
+		.BaselinePathLength = FrameBaselinePathLength, 
+		.TestPathLength = FrameTestPathLength, 
+		.Difference = Difference
+	};
 }
 
 float ASimulationActor::CalcFrameInterPedestrianDistanceMetric(const TArray<FTCEntity>& Baseline, const TArray<FTCEntity>& Test) const
@@ -303,6 +338,25 @@ FTCDensityMetric ASimulationActor::CalcFrameAverageDensityMetric(const TArray<FT
 	const float TestAvgDensity = (Entities.Num() / static_cast<float>(NumOccupiedCells));
 	
 	return {BaselineAvgDensity, TestAvgDensity};
+}
+
+FTCSpeedMetric ASimulationActor::CalcFrameAverageSpeedMetric(const TArray<FTCEntity>& Baseline, const TArray<FTCEntity>& Test)
+{
+	const auto CalcAverageSpeed = [this](const TArray<FTCEntity>& EntityArray) -> float
+	{
+		for (int Index = 0; Index < EntityArray.Num(); ++Index)
+		{
+			const FTCEntity& Entity = EntityArray[Index];
+			Speeds[Index] = Entity.Velocity.Length(); 
+		}
+		
+		return Algo::Accumulate(Speeds, 0) / EntityArray.Num();
+	};
+	
+	const float BaselineAvgSpeed = CalcAverageSpeed(Baseline);
+	const float TestAvgSpeed = CalcAverageSpeed(Test);
+	
+	return {BaselineAvgSpeed, TestAvgSpeed};
 }
 
 void ASimulationActor::SimulateFast()
