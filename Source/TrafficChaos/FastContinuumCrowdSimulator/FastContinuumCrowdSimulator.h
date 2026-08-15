@@ -75,7 +75,7 @@ public:
 	{
 		return ImplicitGrid;
 	}
-	
+	virtual FTCMemoryMetric GetMaxAllocatedSize() const override;
 public:
 	
 	virtual void Initialize(const float NewWorldSpan, const int NewResolution, const int NewNumGroups, const TInstancedStruct<FTCSimulationParameters> Parameters, const FTCSocialForceParameters& SocialForceParameters) override;
@@ -97,6 +97,11 @@ private:
 	float GetSocialForceInfluence(const FVector2f& DesiredDirection, const FVector2f& Force);
 	EDirectionIndex ConvertVectorToDirectionIndex(const FVector2f& Vector) const;
 	FVector2f CalculatedDesiredVelocity(const FVector2f& GridLocation, const int GroupID);
+	
+	void Meta_UpdateCandidatesSize();
+	void Meta_UpdateKnownsSize();
+
+private:
 
 	int NumGroups = 0;
 	FRpSpatialData<FTCFastCell> Field;
@@ -110,4 +115,6 @@ private:
 	FRpImplicitGrid ImplicitGrid;
 	
 	TArray<FVector> EntityPositions;
+	SIZE_T MaxCandidatesSize = 0;
+	SIZE_T MaxKnownsSize = 0;
 }; 

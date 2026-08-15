@@ -74,6 +74,12 @@ struct FTCSimulationParameters
 	GENERATED_BODY();
 };
 
+struct FTCMemoryMetric
+{
+	SIZE_T FieldSize = 0;
+	SIZE_T SolverDataSize = 0;
+};
+
 class TCSimulatorBase
 {
 public:
@@ -88,5 +94,6 @@ public:
 	virtual void RegisterDiscomfort(const FVector2f& WorldLocation, const float Amount) = 0;
 	virtual void SetSimulationParameters(const TInstancedStruct<FTCSimulationParameters> NewSimParamters) = 0;
 	virtual void SetAdvectionParameters(const FTCSocialForceParameters& SocialForceParameters) = 0;
+	virtual FTCMemoryMetric GetMaxAllocatedSize() const = 0;
 };
 

@@ -102,6 +102,13 @@ private:
 	TArray<FTCNeighbor<FTCBaselineCell>> GetNeighbors(const FVector2f& Coords);
 	float GetSocialForceInfluence(const FVector2f& DesiredDirection, const FVector2f& Force);
 	FVector2f CalculateDesiredVelocity(const FVector2f& GridLocation, int GroupID);
+	
+	void Meta_UpdateCandidatesSize();
+	void Meta_UpdateKnownsSize();
+
+public:
+
+	virtual FTCMemoryMetric GetMaxAllocatedSize() const override;
 
 private:
 	
@@ -113,8 +120,10 @@ private:
 	TArray<FTCBaselineCell*> Candidates;
 	 
 	FTCBaselineSimParameters SimParameters;
-	FRpImplicitGrid ImplicitGrid;
 	FTCSocialForceParameters PedParameters;
+	FRpImplicitGrid ImplicitGrid;
 	
 	TArray<FVector> EntityPositions;
+	SIZE_T MaxCandidatesSize = 0;
+	SIZE_T MaxKnownsSize = 0;
 }; 

@@ -6,10 +6,22 @@
 
 constexpr float MAX_COST = 1000.0f;
 
+FTCMemoryMetric TCFastContinuumCrowdSimulator::GetMaxAllocatedSize() const
+{
+	return 
+	{
+		.FieldSize = Field.GetSizeOfData(), 
+		.SolverDataSize = MaxKnownsSize + MaxCandidatesSize
+	};
+}
+
 void TCFastContinuumCrowdSimulator::Initialize(const float NewWorldSpan, const int NewResolution, const int NewNumGroups, const TInstancedStruct<FTCSimulationParameters>Parameters, const FTCSocialForceParameters& SocialForceParameters)
 {
 	ImplicitGrid.Initialize(FFloatRange(0, NewWorldSpan), NewResolution);
 	Field.Initialize(NewResolution, NewWorldSpan, {});
+	
+	MaxKnownsSize = 0;
+	MaxCandidatesSize = 0;
 
 	const auto InitializeCell = [NewNumGroups](FTCFastCell* Cell, const FVector2f& Coords)
 	{
@@ -241,6 +253,7 @@ void TCFastContinuumCrowdSimulator::UpdatePotentialField(const int GroupID)
 	GoalCell->Potential[GroupID] = 0;
 	GoalCell->bIsWall = false;
 	Candidates.PushFirst(GoalCell);
+	Meta_UpdateCandidatesSize();
 
 	// 2. Initialize potentials
 	const auto InitializePotential = [GoalCoords, GroupID](FTCFastCell* Cell, const FVector2f& Coords)
@@ -264,6 +277,7 @@ void TCFastContinuumCrowdSimulator::UpdatePotentialField(const int GroupID)
 		}
 		
 		Knowns.Add(Current);
+		Meta_UpdateKnownsSize();
 		
 		const TArray<FTCNeighbor<FTCFastCell>> Neighbors = GetNeighbors(Current->Coords);
 		for (const auto& [Neighbor, NeighborDirection] : Neighbors)
@@ -278,6 +292,7 @@ void TCFastContinuumCrowdSimulator::UpdatePotentialField(const int GroupID)
 			{
 				Neighbor->Potential[GroupID] = NewPotential;
 				Candidates.PushLast(Neighbor);
+				Meta_UpdateCandidatesSize();
 			}
 		}
 	}
@@ -453,4 +468,22 @@ FVector2f TCFastContinuumCrowdSimulator::CalculatedDesiredVelocity(const FVector
 	}
 	
 	return DesiredVelocity / NumSampledLocations; 
+}
+
+void TCFastContinuumCrowdSimulator::Meta_UpdateCandidatesSize()
+{
+	const size_t Size = Candidates.GetAllocatedSize();
+	if (Size > MaxCandidatesSize)
+	{
+		MaxCandidatesSize = Size;
+	}
+}
+
+void TCFastContinuumCrowdSimulator::Meta_UpdateKnownsSize()
+{
+	const size_t Size = Knowns.GetAllocatedSize();
+	if (Size > MaxKnownsSize)
+	{
+		MaxKnownsSize = Size;
+	}
 }

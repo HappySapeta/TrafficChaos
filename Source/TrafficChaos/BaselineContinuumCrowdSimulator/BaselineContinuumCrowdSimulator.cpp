@@ -6,6 +6,15 @@
 
 constexpr float MAX_COST = 1000.0f;
 
+FTCMemoryMetric TCBaselineContinuumCrowdSimulator::GetMaxAllocatedSize() const
+{
+	return 
+	{
+		.FieldSize = Field.GetSizeOfData(), 
+		.SolverDataSize = MaxKnownsSize + MaxCandidatesSize
+	};
+}
+
 void TCBaselineContinuumCrowdSimulator::RegisterGoal(const int GroupID, const FVector2f& Goal)
 {
 	Goals.Add({GroupID, Goal});
@@ -197,6 +206,9 @@ void TCBaselineContinuumCrowdSimulator::Initialize(const float NewWorldSpan, con
 	ImplicitGrid.Initialize(FFloatRange(0, NewWorldSpan), NewResolution);
 	Field.Initialize(NewResolution, NewWorldSpan, {});
 
+	MaxCandidatesSize = 0;
+	MaxKnownsSize = 0;
+	
 	const auto InitializeCell = [NewNumGroups](FTCBaselineCell* Cell, const FVector2f& Coords)
 	{
 		Cell->Coords = Coords;
@@ -264,6 +276,7 @@ void TCBaselineContinuumCrowdSimulator::UpdatePotentialField(const int GroupID)
 	FTCBaselineCell* GoalCell = Field.GetDataAt(Field.WorldToGridIndices(Goals[GroupID]));
 	GoalCell->Potential[GroupID] = 0;
 	Knowns.Add(GoalCell);
+	Meta_UpdateKnownsSize();
 	
 	const auto InitializeCell = [GoalCell, GroupID, this](FTCBaselineCell* Cell, const FVector2f& Coords)
 	{
@@ -278,6 +291,7 @@ void TCBaselineContinuumCrowdSimulator::UpdatePotentialField(const int GroupID)
 	{
 		Neighbor->Potential[GroupID] = GetFiniteDifferenceApproximation(Neighbor->Coords, GroupID);
 		Candidates.HeapPush(Neighbor, LowestPotentialOnTop);
+		Meta_UpdateCandidatesSize();
 	}
 	
 	while (!Candidates.IsEmpty())
@@ -291,6 +305,7 @@ void TCBaselineContinuumCrowdSimulator::UpdatePotentialField(const int GroupID)
 		}
 		
 		Knowns.Add(Cell);
+		Meta_UpdateKnownsSize();
 		
 		for (auto& [Neighbor, Direction] : GetNeighbors(Cell->Coords))
 		{
@@ -304,6 +319,7 @@ void TCBaselineContinuumCrowdSimulator::UpdatePotentialField(const int GroupID)
 			{
 				Neighbor->Potential[GroupID] = NewPotential;
 				Candidates.HeapPush(Neighbor, LowestPotentialOnTop);
+				Meta_UpdateCandidatesSize();
 			}
 		}
 	}
@@ -525,4 +541,22 @@ FVector2f TCBaselineContinuumCrowdSimulator::CalculateDesiredVelocity(const FVec
 	}
 	
 	return DesiredVelocity / NumSampledLocations; 
+}
+
+void TCBaselineContinuumCrowdSimulator::Meta_UpdateCandidatesSize()
+{
+	const size_t Size = Candidates.GetAllocatedSize();
+	if (Size > MaxCandidatesSize)
+	{
+		MaxCandidatesSize = Size;
+	}
+}
+
+void TCBaselineContinuumCrowdSimulator::Meta_UpdateKnownsSize()
+{
+	const size_t Size = Knowns.GetAllocatedSize();
+	if (Size > MaxKnownsSize)
+	{
+		MaxKnownsSize = Size;
+	}
 }

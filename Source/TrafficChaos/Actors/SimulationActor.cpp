@@ -95,8 +95,8 @@ void ASimulationActor::NormaliseMetrics(const int NumFrames)
 		Metrics.TotalVorticityMetric.TestVorticity = Metrics.TotalVorticityMetric.TestVorticity / NumFrames;
 	}
 	{
-		//Metrics.TotalCollisionsMetric.BaselineCollisions /= NumFrames;
-		//Metrics.TotalCollisionsMetric.TestCollisions /= NumFrames;
+		Metrics.TotalCollisionsMetric.BaselineCollisions /= NumFrames;
+		Metrics.TotalCollisionsMetric.TestCollisions /= NumFrames;
 	}
 	{
 		Metrics.TotalDensityMetric.BaselineAvgDensity /= NumFrames;
@@ -112,7 +112,6 @@ void ASimulationActor::Evaluate()
 {
 	StopVisualisation();
 	InitialiseSimulation();
-	
 	
 	BaselinePreviousPositions.Init(FVector2f::ZeroVector, Entities.Num());
 	TestPreviousPositions.Init(FVector2f::ZeroVector, Entities.Num());
@@ -164,6 +163,20 @@ void ASimulationActor::Evaluate()
 		*Metrics.TotalDensityMetric.ToString(),
 		*Metrics.TotalSpeedMetric.ToString()
 	)
+
+	UE_LOG
+	(
+		LogTemp, Warning, TEXT("Baseline Memory. Field : %llu, Solver : %llu"), 
+		BaselineSimulator->GetMaxAllocatedSize().FieldSize,
+		BaselineSimulator->GetMaxAllocatedSize().SolverDataSize
+	);
+	
+	UE_LOG
+	(
+		LogTemp, Warning, TEXT("Test Memory. Field : %llu, Solver : %llu"), 
+		FastSimulator->GetMaxAllocatedSize().FieldSize,
+		FastSimulator->GetMaxAllocatedSize().SolverDataSize
+	);
 }
 
 float ASimulationActor::CalcFrameAbsoluteDifferenceMetric(const TArray<FTCEntity>& Baseline, const TArray<FTCEntity>& Test) const
