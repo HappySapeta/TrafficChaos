@@ -87,7 +87,9 @@ void ASimulationActor::NormaliseMetrics(const int NumFrames)
 		Metrics.TotalPathLengthMetric.Difference /= NumEntities;
 	}
 	{
-		Metrics.TotalInterPedDistanceMetric = FMath::Abs(Metrics.TotalInterPedDistanceMetric) / (NumFrames * NumPairs);
+		Metrics.TotalPedDistanceMetric.BaselinePedDistance = FMath::Abs(Metrics.TotalPedDistanceMetric.BaselinePedDistance) / (NumFrames * NumPairs);
+		Metrics.TotalPedDistanceMetric.TestPedDistance = FMath::Abs(Metrics.TotalPedDistanceMetric.TestPedDistance) / (NumFrames * NumPairs);
+		Metrics.TotalPedDistanceMetric.Difference = FMath::Abs(Metrics.TotalPedDistanceMetric.Difference) / (NumFrames * NumPairs);
 	}
 	{
 		Metrics.TotalVorticityMetric.Difference = FMath::Abs(Metrics.TotalVorticityMetric.Difference) / NumFrames;
@@ -143,7 +145,7 @@ void ASimulationActor::Evaluate()
 		
 		Metrics.TotalAbsoluteDifferenceMetric += CalcFrameAbsoluteDifferenceMetric(BaselineEntities, FastSimEntities);
 		Metrics.TotalPathLengthMetric += CalcFramePathLengthMetric(BaselineEntities, FastSimEntities);
-		Metrics.TotalInterPedDistanceMetric += CalcFrameInterPedestrianDistanceMetric(BaselineEntities, FastSimEntities);
+		Metrics.TotalPedDistanceMetric += CalcFrameInterPedestrianDistanceMetric(BaselineEntities, FastSimEntities);
 		Metrics.TotalVorticityMetric += CalcFrameVorticityMetric(BaselineEntities, FastSimEntities);
 		Metrics.TotalCollisionsMetric += CalcFrameCollisionsMetric(BaselineEntities, FastSimEntities);
 		Metrics.TotalDensityMetric += CalcFrameAverageDensityMetric(BaselineEntities, FastSimEntities);
@@ -154,9 +156,11 @@ void ASimulationActor::Evaluate()
 	
 	UE_LOG
 	(
-		LogTemp, Warning, TEXT("Abs Diff = %f, Ped Dist = %f, %s, %s, %s, %s, %s"), 
+		LogTemp, Warning, TEXT("%s,%d,%.2f, %s, %s, %s, %s, %s, %s"),
+		*GetWorld()->GetMapName(),
+		RandomSeed,
 		Metrics.TotalAbsoluteDifferenceMetric, 
-		Metrics.TotalInterPedDistanceMetric,
+		*Metrics.TotalPedDistanceMetric.ToString(),
 		*Metrics.TotalPathLengthMetric.ToString(),
 		*Metrics.TotalVorticityMetric.ToString(),
 		*Metrics.TotalCollisionsMetric.ToString(),
@@ -164,19 +168,19 @@ void ASimulationActor::Evaluate()
 		*Metrics.TotalSpeedMetric.ToString()
 	)
 
-	UE_LOG
-	(
-		LogTemp, Warning, TEXT("Baseline Memory. Field : %llu, Solver : %llu"), 
-		BaselineSimulator->GetMaxAllocatedSize().FieldSize,
-		BaselineSimulator->GetMaxAllocatedSize().SolverDataSize
-	);
+	//UE_LOG
+	//(
+	//	LogTemp, Warning, TEXT("Baseline Memory. Field : %llu, Solver : %llu"), 
+	//	BaselineSimulator->GetMaxAllocatedSize().FieldSize,
+	//	BaselineSimulator->GetMaxAllocatedSize().SolverDataSize
+	//);
 	
-	UE_LOG
-	(
-		LogTemp, Warning, TEXT("Test Memory. Field : %llu, Solver : %llu"), 
-		FastSimulator->GetMaxAllocatedSize().FieldSize,
-		FastSimulator->GetMaxAllocatedSize().SolverDataSize
-	);
+	//UE_LOG
+	//(
+	//	LogTemp, Warning, TEXT("Test Memory. Field : %llu, Solver : %llu"), 
+	//	FastSimulator->GetMaxAllocatedSize().FieldSize,
+	//	FastSimulator->GetMaxAllocatedSize().SolverDataSize
+	//);
 }
 
 float ASimulationActor::CalcFrameAbsoluteDifferenceMetric(const TArray<FTCEntity>& Baseline, const TArray<FTCEntity>& Test) const
@@ -222,7 +226,7 @@ FTCPathLengthMetric ASimulationActor::CalcFramePathLengthMetric(const TArray<FTC
 	};
 }
 
-float ASimulationActor::CalcFrameInterPedestrianDistanceMetric(const TArray<FTCEntity>& Baseline, const TArray<FTCEntity>& Test) const
+FTCInterPedDistanceMetric ASimulationActor::CalcFrameInterPedestrianDistanceMetric(const TArray<FTCEntity>& Baseline, const TArray<FTCEntity>& Test) const
 {
 	const int NumEntities = Entities.Num();
 	const auto CalculateInterPedDistanceSum = [NumEntities](const TArray<FTCEntity>& TargetEntities) -> float
@@ -239,8 +243,10 @@ float ASimulationActor::CalcFrameInterPedestrianDistanceMetric(const TArray<FTCE
 		return InterPedDistance;
 	};
 	
-	const double FrameInterPedDistanceMetric = CalculateInterPedDistanceSum(Baseline) - CalculateInterPedDistanceSum(Test);
-	return FrameInterPedDistanceMetric;
+	const float BaselinePedDistance = CalculateInterPedDistanceSum(Baseline);
+	const float TestPedDistance = CalculateInterPedDistanceSum(Test);
+	const float Difference = BaselinePedDistance - TestPedDistance;
+	return {BaselinePedDistance, TestPedDistance, Difference};
 }
 
 FTCFrameVorticityMetric ASimulationActor::CalcFrameVorticityMetric(const TArray<FTCEntity>& Baseline, const TArray<FTCEntity>& Test)
@@ -329,7 +335,6 @@ FTCCollisionsMetric ASimulationActor::CalcFrameCollisionsMetric(const TArray<FTC
 
 FTCDensityMetric ASimulationActor::CalcFrameAverageDensityMetric(const TArray<FTCEntity>& Baseline, const TArray<FTCEntity>& Test)
 {
-	const int NumEntities = Entities.Num();
 	int NumOccupiedCells = 0;
 	const auto UpdateOccupancy = [&NumOccupiedCells](const FTCPedDensityCell* CellDensity, const FVector2f& Coords) -> void
 	{

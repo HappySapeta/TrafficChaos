@@ -118,11 +118,11 @@ struct FTCFrameVorticityMetric
 		Difference += VorticityMetric.Difference;
 		
 		return *this;
-	}
+	}	
 
 	FString ToString() const
 	{
-		return FString::Printf(TEXT("Baseline Vorticity : %f, Test Vorticity : %f, Difference : %f"),
+		return FString::Printf(TEXT("%.2f,%.2f,%.2f"),
 			BaselineVorticity, TestVorticity, Difference);
 	}
 };
@@ -142,7 +142,7 @@ struct FTCCollisionsMetric
 	
 	FString ToString() const
 	{
-		return FString::Printf(TEXT("Baseline Collision Pairs : %f, Test Collision Pairs : %f"),
+		return FString::Printf(TEXT("%.2f,%.2f"),
 			BaselineCollisions, TestCollisions);
 	}
 };
@@ -162,7 +162,7 @@ struct FTCDensityMetric
 	
 	FString ToString() const
 	{
-		return FString::Printf(TEXT("Baseline Density : %f, Test Density : %f"), BaselineAvgDensity, TestAvgDensity);
+		return FString::Printf(TEXT("%.2f,%.2f"), BaselineAvgDensity, TestAvgDensity);
 	}
 };
 
@@ -181,7 +181,7 @@ struct FTCSpeedMetric
 	
 	FString ToString() const
 	{
-		return FString::Printf(TEXT("Baseline Speed : %f, Test Speed : %f"), BaselineAvgSpeed, TestAvgSpeed);
+		return FString::Printf(TEXT("%.2f,%.2f"), BaselineAvgSpeed, TestAvgSpeed);
 	}
 };
 
@@ -204,9 +204,36 @@ struct FTCPathLengthMetric
 	{
 		return FString::Printf
 		(
-			TEXT("Baseline Path : %f, Test Path : %f, Difference : %f"), 
+			TEXT("%.2f,%.2f,%.2f"),
 			BaselinePathLength, 
 			TestPathLength,
+			Difference
+		);
+	}
+};
+
+struct FTCInterPedDistanceMetric
+{
+	float BaselinePedDistance = 0.0f;
+	float TestPedDistance = 0.0f;
+	float Difference = 0.0f;
+	
+	FTCInterPedDistanceMetric& operator+=(const FTCInterPedDistanceMetric& InterPedMetric)
+	{
+		BaselinePedDistance += InterPedMetric.BaselinePedDistance;
+		TestPedDistance += InterPedMetric.TestPedDistance;
+		Difference += InterPedMetric.Difference;
+		
+		return *this;
+	}
+	
+	FString ToString() const
+	{
+		return FString::Printf
+		(
+			TEXT("%.2f,%.2f,%.2f"), 
+			BaselinePedDistance, 
+			TestPedDistance,
 			Difference
 		);
 	}
@@ -215,7 +242,7 @@ struct FTCPathLengthMetric
 struct FTCMetrics
 {
 	float TotalAbsoluteDifferenceMetric = 0.0f;
-	float TotalInterPedDistanceMetric = 0.0f;
+	FTCInterPedDistanceMetric TotalPedDistanceMetric = {};
 	FTCPathLengthMetric TotalPathLengthMetric = {};
 	FTCFrameVorticityMetric TotalVorticityMetric = {};
 	FTCCollisionsMetric TotalCollisionsMetric = {};
@@ -270,7 +297,7 @@ private:
 	void DrawDebugBaseline();
 	void DrawDebugFast();
 	float CalcFrameAbsoluteDifferenceMetric(const TArray<FTCEntity>& Baseline, const TArray<FTCEntity>& Test) const;
-	float CalcFrameInterPedestrianDistanceMetric(const TArray<FTCEntity>& Baseline, const TArray<FTCEntity>& Test) const;
+	FTCInterPedDistanceMetric CalcFrameInterPedestrianDistanceMetric(const TArray<FTCEntity>& Baseline, const TArray<FTCEntity>& Test) const;
 	FTCPathLengthMetric CalcFramePathLengthMetric(const TArray<FTCEntity>& Baseline, const TArray<FTCEntity>& Test);
 	FTCDensityMetric CalcFrameAverageDensityMetric(const TArray<FTCEntity>& Baseline, const TArray<FTCEntity>& Test);
 	FTCFrameVorticityMetric CalcFrameVorticityMetric(const TArray<FTCEntity>& Baseline, const TArray<FTCEntity>& Test);
