@@ -4,7 +4,7 @@
 #include "Math.h"
 #include "Kismet/KismetMathLibrary.h"
 
-constexpr float MAX_COST = 1000.0f;
+constexpr float MAX_COST = 10000.0f;
 
 FTCMemoryMetric TCBaselineContinuumCrowdSimulator::GetMaxAllocatedSize() const
 {

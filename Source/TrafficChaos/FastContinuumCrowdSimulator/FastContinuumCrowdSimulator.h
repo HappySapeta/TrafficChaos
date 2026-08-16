@@ -29,29 +29,17 @@ struct FTCFastSimulationParameters : public FTCSimulationParameters
 {
 	GENERATED_BODY()
 	
-	UPROPERTY(EditAnywhere, meta = (ClampMin = 0, ClampMax = 1, UIMin = 0, UIMax = 1))
+	UPROPERTY(EditAnywhere)
 	float PathCostConstant = 1;
 	
-	UPROPERTY(EditAnywhere, meta = (ClampMin = 0, ClampMax = 1, UIMin = 0, UIMax = 1))
+	UPROPERTY(EditAnywhere)
 	float TimeCostConstant = 1;
 	
-	UPROPERTY(EditAnywhere, meta = (ClampMin = 0, ClampMax = 1, UIMin = 0, UIMax = 1))
+	UPROPERTY(EditAnywhere)
 	float DiscomfortConstant = 1;
 	
-	UPROPERTY(EditAnywhere, meta = (ClampMin = 0, ClampMax = 1, UIMin = 0, UIMax = 1))
+	UPROPERTY(EditAnywhere)
 	float DensityConstant = 1;
-	
-	UPROPERTY(EditAnywhere, meta = (ClampMin = 1, UIMin = 1))
-	int DensityLookahead = 1;
-	
-	UPROPERTY(EditAnywhere, meta = (ClampMin = 1, UIMin = 1))
-	int VelocityLookahead = 1;
-	
-	UPROPERTY(EditAnywhere, meta = (ClampMin = 0, UIMin = 0))
-	float DensityExponent = 1.0f;
-	
-	UPROPERTY(EditAnywhere, meta = (ClampMin = 0, UIMin = 0))
-	float CostExponent = 1.0f;
 };
 
 class TRAFFICCHAOS_API TCFastContinuumCrowdSimulator : public TCSimulatorBase

@@ -2,9 +2,8 @@
 
 #include "FastContinuumCrowdSimulator.h"
 #include "Math.h"
-#include "Kismet/KismetMathLibrary.h"
 
-constexpr float MAX_COST = 1000.0f;
+constexpr float MAX_COST = 10000.0f;
 
 FTCMemoryMetric TCFastContinuumCrowdSimulator::GetMaxAllocatedSize() const
 {
@@ -190,38 +189,32 @@ void TCFastContinuumCrowdSimulator::UpdateCostField()
 	{
 		for (int DirectionIndex = 0; DirectionIndex < ANISOTROPY; ++DirectionIndex)
 		{
-			float TotalCost = 0;
 			const FTCFastCell* NeighborCell = Field.GetDataAt(CurrentCell->Coords, DIRECTION_OFFSETS[DirectionIndex]);
 			if (!NeighborCell)
 			{
+				CurrentCell->CostField[DirectionIndex] = MAX_COST;
 				continue;
 			}
 			
+			float TotalCost = 0;
 			// Density Cost
 			{
-				const float MaxDensity = FMath::Square(Field.GetCellSize()) / (PI * FMath::Square(PedParameters.AvoidanceRadius * 0.5f));
-				const float NormDensity = FMath::Pow(FMath::Min(NeighborCell->ByteDensity / MaxDensity, 1), SimParameters.DensityExponent);
-				const float DensityCost = NormDensity * SimParameters.DensityConstant;
-
+				const float DensityCost = NeighborCell->ByteDensity * SimParameters.DensityConstant;
 				TotalCost += DensityCost;
 			}
 			
-			// Velocity Cost
+			// Direction Cost
 			{
 				const FVector2f NeighborVelocity = DIRECTION_OFFSETS[NeighborCell->Direction];
 				const float DotProduct = -FVector2f::DotProduct(DIRECTION_OFFSETS[DirectionIndex].GetSafeNormal(), NeighborVelocity.GetSafeNormal());
-				const float ClampedDotProduct = FMath::Max(DotProduct, 0.1f);
-				const float NormDotProduct = UKismetMathLibrary::NormalizeToRange(ClampedDotProduct, 0, 1);
-				const float VelocityCost = NormDotProduct * SimParameters.TimeCostConstant;
+				const float VelocityCost = DotProduct * SimParameters.TimeCostConstant;
 				
 				TotalCost += VelocityCost;
 			}
 			
 			// Distance Cost
 			{
-				const float NormDistance = DIRECTION_OFFSETS[DirectionIndex].Length() / FMath::Sqrt(2.0f);
-				const float DistanceCost = NormDistance * SimParameters.PathCostConstant;
-				
+				const float DistanceCost = DIRECTION_OFFSETS[DirectionIndex].Length() * SimParameters.PathCostConstant;
 				TotalCost += DistanceCost;
 			}
 			
@@ -230,7 +223,7 @@ void TCFastContinuumCrowdSimulator::UpdateCostField()
 				TotalCost += (NeighborCell->Discomfort / static_cast<float>(TNumericLimits<uint8>::Max())) * SimParameters.DiscomfortConstant;
 			}
 			
-			CurrentCell->CostField[DirectionIndex] = FMath::Pow(TotalCost, SimParameters.CostExponent);
+			CurrentCell->CostField[DirectionIndex] = FMath::Max(TotalCost, 0.0f);
 		}
 	}; 
 	Field.ForEachCellPerform(CalculateCost);
@@ -345,12 +338,12 @@ float TCFastContinuumCrowdSimulator::GetFiniteDifferenceApproximation(const FVec
 
 	if (PhiX == MAX_COST && PhiY < MAX_COST)
 	{
-		return FMath::Sqrt(Cy) + PhiY;
+		return Cy + PhiY;
 	}
 
 	if (PhiY == MAX_COST && PhiX < MAX_COST)
 	{
-		return FMath::Sqrt(Cx) + PhiX;
+		return Cx + PhiX;
 	}
 
 	if (PhiY == MAX_COST && PhiX == MAX_COST)
