@@ -223,7 +223,7 @@ void TCFastContinuumCrowdSimulator::UpdateCostField()
 				TotalCost += (NeighborCell->Discomfort / static_cast<float>(TNumericLimits<uint8>::Max())) * SimParameters.DiscomfortConstant;
 			}
 			
-			CurrentCell->CostField[DirectionIndex] = FMath::Max(TotalCost, 0.0f);
+			CurrentCell->CostField[DirectionIndex] = FMath::Max(TotalCost, UE_SMALL_NUMBER);
 		}
 	}; 
 	Field.ForEachCellPerform(CalculateCost);
