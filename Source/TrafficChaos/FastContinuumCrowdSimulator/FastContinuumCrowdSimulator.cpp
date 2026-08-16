@@ -358,9 +358,9 @@ float TCFastContinuumCrowdSimulator::GetFiniteDifferenceApproximation(const FVec
 		return MAX_COST;
 	}
 
-	const float QuadraticCoeffA = Cy + Cx;
-	const float QuadraticCoeffB = -2 * ((PhiX * Cy) + (PhiY * Cx));
-	const float QuadraticCoeffC = (FMath::Square(PhiX) * Cy) + (FMath::Square(PhiY) * Cx) - (Cx * Cy);
+	const float QuadraticCoeffA = FMath::Square(Cy) + FMath::Square(Cx);
+	const float QuadraticCoeffB = -2 * ((PhiX * FMath::Square(Cy)) + (PhiY * FMath::Square(Cx)));
+	const float QuadraticCoeffC = (FMath::Square(PhiX) * FMath::Square(Cy)) + (FMath::Square(PhiY) * FMath::Square(Cx)) - (FMath::Square(Cx) * FMath::Square(Cy));
 
 	const float TermUnderSqrt = FMath::Square(QuadraticCoeffB) - (4 * QuadraticCoeffA * QuadraticCoeffC);
 	if (TermUnderSqrt >= 0.0f)
