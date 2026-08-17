@@ -173,12 +173,18 @@ void TCFastContinuumCrowdSimulator::UpdateDensityAndVelocityField(const TArray<F
 
 		if (FTCFastCell* Cell = Field.GetDataAt(Field.WorldToGridIndices(EntityPosition)))
 		{
-			Cell->ByteDensity = Cell->ByteDensity < TNumericLimits<uint8>::Max() ? Cell->ByteDensity + 1 : Cell->ByteDensity;
-			int PreviousDensity = Cell->ByteDensity > 0 ? Cell->ByteDensity - 1 : 0;
-			FVector2f AccumulatedVelocity = PreviousDensity * DIRECTION_OFFSETS[Cell->Direction]; 
-			AccumulatedVelocity += EntityVelocity;
-			const FVector2f AverageVelocity = AccumulatedVelocity / Cell->ByteDensity;
-			Cell->Direction = ConvertVectorToDirectionIndex(AverageVelocity);
+			const int CurrentDensity = Cell->ByteDensity;
+			const FVector2f AccumulatedVelocity = CurrentDensity * DIRECTION_OFFSETS[Cell->Direction];
+			Cell->ByteDensity = CurrentDensity < TNumericLimits<uint8>::Max() ? CurrentDensity + 1 : CurrentDensity;
+			const FVector2f AverageVelocity = (AccumulatedVelocity + EntityVelocity) / Cell->ByteDensity;
+			if (AverageVelocity.Length() < SMALL_NUMBER)
+			{
+				Cell->Direction = EDirectionIndex::NONE;	
+			}
+			else
+			{
+				Cell->Direction = ConvertVectorToDirectionIndex(AverageVelocity.GetSafeNormal());
+			}
 		}
 	}
 }
@@ -433,7 +439,7 @@ EDirectionIndex TCFastContinuumCrowdSimulator::ConvertVectorToDirectionIndex(con
 
 	for (int DirectionIndex = 0; DirectionIndex < NUM_OFFSETS; ++DirectionIndex)
 	{
-		const float DotProduct = FVector2f::DotProduct(DIRECTION_OFFSETS[DirectionIndex], Vector);
+		const float DotProduct = FVector2f::DotProduct(DIRECTION_OFFSETS[DirectionIndex].GetSafeNormal(), Vector);
 		if (DotProduct > MaxDotProduct)
 		{
 			MaxDotProduct = DotProduct;

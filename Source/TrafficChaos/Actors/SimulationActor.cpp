@@ -798,6 +798,10 @@ void ASimulationActor::DrawDebugFast()
 			const FVector BoxMax = {WorldCoords.X + DebugBoxExtent, WorldCoords.Y + DebugBoxExtent, 100};
 			const FColor BoxColor = FLinearColor(FMath::Square(NormPotential), 0, 0, 1).ToFColor(false);
 			DrawDebugSolidBox(World, FBox(BoxMin, BoxMax), BoxColor);
+			
+			const FString String = FString::Printf(TEXT("%.2f"), Cell->Potential[DebugSettings.DebugGroupID]);
+			const FVector StringLocation = {WorldCoords.X + DebugBoxExtent / 2, WorldCoords.Y + DebugBoxExtent / 2, 0.0f}; 
+			DrawDebugString(World, StringLocation , String, this, FColor::White, SimulationTimeStep);
 		};
 	
 		Field.ForEachCellPerform(DrawPotential);
@@ -942,8 +946,10 @@ void ASimulationActor::InitialiseEntityStartLocations()
 				.Position = NewPosition, 
 				.Velocity = FVector2f{FVector2f::ZeroVector}, 
 				.GroupID = GroupID,
+#ifdef ENABLE_VELOCITY_OVERRIDING
 				.OverrideVelocity = Configuration.OverrideVelocity,
 				.bUseOverrideVelocity = Configuration.bUseOverrideVelocity
+#endif
 			});
 			++NumSpawned;
 		}
