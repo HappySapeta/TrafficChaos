@@ -87,6 +87,7 @@ void TCFastContinuumCrowdSimulator::MoveEntites(TArray<FTCEntity>& Entities, con
 #ifdef ENABLE_VELOCITY_OVERRIDING
 		if (Entities[EntityIndex].bUseOverrideVelocity)
 		{
+			Entities[EntityIndex].Velocity = Entities[EntityIndex].OverrideVelocity;
 			Entities[EntityIndex].Position += Entities[EntityIndex].OverrideVelocity * TimeStep;
 			continue;
 		}
@@ -207,7 +208,7 @@ void TCFastContinuumCrowdSimulator::UpdateCostField()
 			{
 				const FVector2f NeighborVelocity = DIRECTION_OFFSETS[NeighborCell->Direction];
 				const float DotProduct = -FVector2f::DotProduct(DIRECTION_OFFSETS[DirectionIndex].GetSafeNormal(), NeighborVelocity.GetSafeNormal());
-				const float VelocityCost = DotProduct * SimParameters.TimeCostConstant;
+				const float VelocityCost = FMath::Max(DotProduct, 0.0f) * SimParameters.TimeCostConstant;
 				
 				TotalCost += VelocityCost;
 			}
@@ -220,7 +221,8 @@ void TCFastContinuumCrowdSimulator::UpdateCostField()
 			
 			// Discomfort Cost
 			{
-				TotalCost += (NeighborCell->Discomfort / static_cast<float>(TNumericLimits<uint8>::Max())) * SimParameters.DiscomfortConstant;
+				const float NormalisedDiscomfort = (NeighborCell->Discomfort / static_cast<float>(TNumericLimits<uint8>::Max()));
+				TotalCost += NormalisedDiscomfort * SimParameters.DiscomfortConstant;
 			}
 			
 			CurrentCell->CostField[DirectionIndex] = FMath::Max(TotalCost, UE_SMALL_NUMBER);

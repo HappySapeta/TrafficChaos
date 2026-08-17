@@ -936,8 +936,15 @@ void ASimulationActor::InitialiseEntityStartLocations()
 					continue;
 				}
 			}
-
-			Entities.Push({NewPosition, FVector2f{FVector2f::ZeroVector}, GroupID});
+			
+			Entities.Push(
+			{
+				.Position = NewPosition, 
+				.Velocity = FVector2f{FVector2f::ZeroVector}, 
+				.GroupID = GroupID,
+				.OverrideVelocity = Configuration.OverrideVelocity,
+				.bUseOverrideVelocity = Configuration.bUseOverrideVelocity
+			});
 			++NumSpawned;
 		}
 		EntityColors.Push(Configuration.Color);

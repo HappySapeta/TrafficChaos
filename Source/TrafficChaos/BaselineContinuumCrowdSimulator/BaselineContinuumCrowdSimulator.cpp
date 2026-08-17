@@ -58,6 +58,7 @@ void TCBaselineContinuumCrowdSimulator::MoveEntites(TArray<FTCEntity>& Entities,
 #ifdef ENABLE_VELOCITY_OVERRIDING
 		if (Entities[EntityIndex].bUseOverrideVelocity)
 		{
+			Entities[EntityIndex].Velocity = Entities[EntityIndex].OverrideVelocity;
 			Entities[EntityIndex].Position += Entities[EntityIndex].OverrideVelocity * TimeStep;
 			continue;
 		}
