@@ -40,6 +40,9 @@ struct FTCFastSimulationParameters : public FTCSimulationParameters
 	
 	UPROPERTY(EditAnywhere)
 	float DensityConstant = 1;
+	
+	UPROPERTY(EditAnywhere)
+	float DensityExponent = 1.0f;
 };
 
 class TRAFFICCHAOS_API TCFastContinuumCrowdSimulator : public TCSimulatorBase

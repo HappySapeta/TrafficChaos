@@ -200,7 +200,10 @@ void TCFastContinuumCrowdSimulator::UpdateCostField()
 			float TotalCost = 0;
 			// Density Cost
 			{
-				const float DensityCost = NeighborCell->ByteDensity * SimParameters.DensityConstant;
+				const float MaxDensity = FMath::Square(Field.GetCellSize()) / (PI * FMath::Square(PedParameters.PedestrianHalfSize * 2.0f));
+				const float NormDensity = FMath::Pow(FMath::Min(NeighborCell->ByteDensity / MaxDensity, 1), SimParameters.DensityExponent);
+				const float DensityCost = NormDensity * SimParameters.DensityConstant;
+
 				TotalCost += DensityCost;
 			}
 			
@@ -208,7 +211,7 @@ void TCFastContinuumCrowdSimulator::UpdateCostField()
 			{
 				const FVector2f NeighborVelocity = DIRECTION_OFFSETS[NeighborCell->Direction];
 				const float DotProduct = -FVector2f::DotProduct(DIRECTION_OFFSETS[DirectionIndex].GetSafeNormal(), NeighborVelocity.GetSafeNormal());
-				const float VelocityCost = FMath::Max(DotProduct, 0.0f) * SimParameters.TimeCostConstant;
+				const float VelocityCost = DotProduct * SimParameters.TimeCostConstant;
 				
 				TotalCost += VelocityCost;
 			}
