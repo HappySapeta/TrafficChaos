@@ -36,8 +36,12 @@ void ASimulationActor::BeginPlay()
 void ASimulationActor::Tick(float DeltaSeconds)
 {
 	Super::Tick(DeltaSeconds);
-	CurrentSimulator.Pin()->UpdateSimulation(Entities);
-	CurrentSimulator.Pin()->MoveEntites(Entities, DeltaSeconds);
+	
+	if (bShouldUpdate)
+	{
+		CurrentSimulator.Pin()->UpdateSimulation(Entities);
+		CurrentSimulator.Pin()->MoveEntites(Entities, DeltaSeconds);
+	}
 
 	switch (SimulatorType)
 	{
@@ -48,6 +52,11 @@ void ASimulationActor::Tick(float DeltaSeconds)
 			DrawDebugFast();
 			break;
 	}
+}
+
+void ASimulationActor::TogglePause()
+{
+	bShouldUpdate = !bShouldUpdate;
 }
 
 void ASimulationActor::InitialiseSimulation()
@@ -689,7 +698,7 @@ void ASimulationActor::DrawDebugBaseline()
 				const FVector2f WorldCoords = Field.GridToWorld(Coords);
 				const FVector BoxMin = {WorldCoords.X, WorldCoords.Y, 0};
 				const FVector BoxMax = {WorldCoords.X + DebugBoxExtent, WorldCoords.Y + DebugBoxExtent, 100};
-				const FColor BoxColor = FLinearColor::LerpUsingHSV(FLinearColor::Transparent, FLinearColor::Green, Cell->Discomfort).ToFColor(false);
+				const FColor BoxColor = FLinearColor::LerpUsingHSV(FLinearColor::Transparent, FLinearColor::Red, Cell->Discomfort).ToFColor(false);
 				DrawDebugSolidBox(World, FBox(BoxMin, BoxMax), BoxColor);
 			}
 		};
@@ -875,7 +884,7 @@ void ASimulationActor::DrawDebugFast()
 			const FVector2f WorldCoords = Field.GridToWorld(Coords);
 			const FVector BoxMin = {WorldCoords.X, WorldCoords.Y, 0};
 			const FVector BoxMax = {WorldCoords.X + DebugBoxExtent, WorldCoords.Y + DebugBoxExtent, 100};
-			constexpr FLinearColor BoxColor(1, 1, 1, 0.1);
+			constexpr FLinearColor BoxColor(1, 1, 1, 0.2);
 			DrawDebugSolidBox(World, FBox(BoxMin, BoxMax), BoxColor.ToFColor(false));
 			
 			const FString String = FString::Printf(TEXT("%.0f, %.0f"), Coords.X, Coords.Y);
@@ -895,7 +904,7 @@ void ASimulationActor::DrawDebugFast()
 				const FVector2f WorldCoords = Field.GridToWorld(Coords);
 				const FVector BoxMin = {WorldCoords.X, WorldCoords.Y, 0};
 				const FVector BoxMax = {WorldCoords.X + DebugBoxExtent, WorldCoords.Y + DebugBoxExtent, 100};
-				const FColor BoxColor = FLinearColor::LerpUsingHSV(FLinearColor::Transparent, FLinearColor::Green, Cell->Discomfort).ToFColor(false);
+				const FColor BoxColor = FLinearColor::LerpUsingHSV(FLinearColor::Transparent, FLinearColor::Red, Cell->Discomfort).ToFColor(false);
 				DrawDebugSolidBox(World, FBox(BoxMin, BoxMax), BoxColor);
 			}
 		};

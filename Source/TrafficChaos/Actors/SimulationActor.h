@@ -263,6 +263,9 @@ public:
 
 	void Tick(float DeltaSeconds) override;
 	
+	UFUNCTION(BlueprintCallable)
+	void TogglePause();
+	
 	UFUNCTION(CallInEditor, Category = "Simulation Commands")
 	void SimulateFast();
 	
@@ -389,4 +392,5 @@ private: // Metrics
 	TArray<FVector2f> BaselinePreviousPositions;
 	TArray<FVector2f> TestPreviousPositions;
 	TArray<float> Speeds;
+	bool bShouldUpdate = false;
 };
